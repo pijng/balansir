@@ -1,5 +1,5 @@
 ## Concept
-Layer 7 load balancer with flexible configuration
+**WIP** Layer 7 load balancer with flexible configuration
 
 ### Configuration table
 
