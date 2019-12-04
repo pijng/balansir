@@ -1,0 +1,8 @@
+{
+    "server_list": ["127.0.0.1:5000", "127.0.0.1:80"],
+    "ecosystem_protocol": "http",
+    "load_balancer_port": 1441,
+    "server_check_timeout": 2,
+    "proxy_mode": "transparent",
+    "balancing_algorithm": "round-robin"
+}
