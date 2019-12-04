@@ -1,8 +1,12 @@
 {
-    "server_list": ["127.0.0.1:5000", "127.0.0.1:80"],
+    "server_list": [
+        {"endpoint": "127.0.0.1:5000", "weight": 0.7}, 
+        {"endpoint": "127.0.0.1:80", "weight": 0.4}
+    ],
     "ecosystem_protocol": "http",
     "load_balancer_port": 1441,
+    "server_check_delay": 10,
     "server_check_timeout": 2,
     "proxy_mode": "transparent",
-    "balancing_algorithm": "round-robin"
+    "balancing_algorithm": "weighted-least-connections"
 }
