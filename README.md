@@ -12,4 +12,4 @@ Layer 7 load balancer with flexible configuration
 | `"proxy_mode"`           | [`"transparent"`], [`"non-transparent"`]                                                                 | String. Define what proxy mode will be used within balansir.                                                                                                          |   |   |
 | `"balancing_algorithm"`  | [`"round-robin"`], [`"weighted-round-robin"`], [`"least-connections"`], [`"weighted-least-connections"`] | String. Define what balancing algorithm balansir should utilize.                                                                                                      |   |   |
 
-[`"transparent"`]: https://google.com
+[`"transparent"`]: #
