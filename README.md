@@ -11,6 +11,7 @@ Layer 7 load balancer with flexible configuration
 | `"server_check_timeout"` |                                                                                                          | Integer. Define how many seconds balansir should keep connection to one of endpoints waiting for response, before it will be marked as dead until next servers check. |   |   |
 | `"proxy_mode"`           | [`"transparent"`], [`"non-transparent"`]                                                                 | String. Define what proxy mode will be used within balansir.                                                                                                          |   |   |
 | `"balancing_algorithm"`  | [`"round-robin"`], [`"weighted-round-robin"`], [`"least-connections"`], [`"weighted-least-connections"`] | String. Define what balancing algorithm balansir should utilize.                                                                                                      |   |   |
+
 [`"http"`]: #
 [`"https"`]: #
 [`"transparent"`]: #
