@@ -1,6 +1,7 @@
 # 💢 Balansir
 
 Simple layer 7 load balancer with flexible configuration
+**Heavily WIP**
 
 ## Configuration table
 
