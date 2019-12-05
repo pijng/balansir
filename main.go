@@ -143,21 +143,14 @@ func (pool *ServerPool) NextPool() int {
 	return current
 }
 
-func rewriteRemoteAddr(r *http.Request) *http.Request {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	r.RemoteAddr = localAddr.String()
+func addRemoteAddrToRequest(r *http.Request) *http.Request {
+	r.Header.Set("X-Forwarded-For", r.RemoteAddr)
 	return r
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
-	if configuration.ProxyMode == "non-transparent" {
-		r = rewriteRemoteAddr(r)
+	if configuration.ProxyMode == "transparent" {
+		r = addRemoteAddrToRequest(r)
 	}
 	switch configuration.Algorithm {
 	case "round-robin":
