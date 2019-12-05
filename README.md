@@ -1,7 +1,8 @@
-## Concept
-**WIP** Layer 7 load balancer with flexible configuration
+# 💢Balansir
 
-### Configuration table
+Simple layer 7 load balancer with flexible configuration
+
+## Configuration table
 
 | Key name                 | Available values                                                                                         | Description                                                                                                                                                           |   |   |
 |--------------------------|----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
