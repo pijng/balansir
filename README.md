@@ -2,7 +2,7 @@
 
 Simple layer 7 load balancer with flexible configuration
 
-**Heavily WIP**
+**Heavily WIP. Do not use it in production in any case.**
 
 <!-- ## Configuration table
 
