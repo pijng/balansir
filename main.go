@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"expvar"
 	"io/ioutil"
 	"log"
 	"math"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"sync"
@@ -37,7 +38,7 @@ type Server struct {
 	URL               *url.URL
 	Weight            float64
 	Index             int
-	ActiveConnections int
+	ActiveConnections *expvar.Float
 	Alive             bool
 	mux               sync.RWMutex
 	Proxy             *httputil.ReverseProxy
@@ -75,7 +76,8 @@ type ServerPool struct {
 
 func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
 	choice := []randutil.Choice{}
-	for _, server := range pool.ServerList {
+	serverList := pool.ExcludeZeroWeightServers()
+	for _, server := range serverList {
 		if server.GetAlive() {
 			weight := int(server.Weight * 100)
 			if (weight > 0) && (weight < 1) {
@@ -84,26 +86,40 @@ func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
 			choice = append(choice, randutil.Choice{Weight: weight, Item: server.Index})
 		}
 	}
+
 	return choice
 }
 
-func (pool *ServerPool) GetWeightedLeastConnectedServer() *Server {
+func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
 	serverList := pool.ServerList
+	k := 0
+	for _, server := range serverList {
+		if server.Weight > 0 {
+			serverList[k] = server
+			k++
+		}
+	}
+	serverList = serverList[:k]
+
+	return serverList
+}
+
+func (pool *ServerPool) GetWeightedLeastConnectedServer() *Server {
+	serverList := pool.ExcludeZeroWeightServers()
 	sort.Slice(serverList, func(i, j int) bool {
-		if (math.Max(float64(serverList[i].ActiveConnections), 1) / serverList[i].Weight) < (math.Max(float64(serverList[j].ActiveConnections), 1) / serverList[j].Weight) {
+		if (math.Max(serverList[i].ActiveConnections.Value(), 1) / serverList[i].Weight) < (math.Max(serverList[j].ActiveConnections.Value(), 1) / serverList[j].Weight) {
 			return true
 		}
 		return false
 	})
 
-	fmt.Println(serverList[0])
 	return serverList[0]
 }
 
 func (pool *ServerPool) GetLeastConnectedServer() *Server {
 	serverList := pool.ServerList
 	sort.Slice(serverList, func(i, j int) bool {
-		return serverList[i].ActiveConnections < serverList[j].ActiveConnections
+		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
 	})
 	return serverList[0]
 }
@@ -141,14 +157,14 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "least-connections":
 		endpoint := pool.GetLeastConnectedServer()
-		endpoint.ActiveConnections = endpoint.ActiveConnections + 1
+		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
-		endpoint.ActiveConnections = endpoint.ActiveConnections - 1
+		endpoint.ActiveConnections.Add(-1)
 	case "weighted-least-connections":
 		endpoint := pool.GetWeightedLeastConnectedServer()
-		endpoint.ActiveConnections = endpoint.ActiveConnections + 1
+		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
-		endpoint.ActiveConnections = endpoint.ActiveConnections - 1
+		endpoint.ActiveConnections.Add(-1)
 	}
 }
 
@@ -175,20 +191,39 @@ func main() {
 	json.Unmarshal(file, &configuration)
 
 	for index, server := range configuration.ServerList {
+		switch configuration.Algorithm {
+		case "weighted-round-robin", "weighted-least-connections":
+			if server.Weight < 0 {
+				log.Fatalf(`Negative weight is specified for "%s" endpoint in config["server_list"]. If you want to mark it as dead one, please set it's the weight to 0.`, server.URL)
+				os.Exit(1)
+			}
+		}
+
 		serverURL, err := url.Parse(configuration.Protocol + "://" + server.URL)
 		if err != nil {
 			log.Fatal(err)
 		}
 		proxy := httputil.NewSingleHostReverseProxy(serverURL)
 
+		connections := expvar.NewFloat("connections-" + strconv.Itoa(index))
+
 		pool.AddServer(&Server{
 			URL:               serverURL,
 			Weight:            server.Weight,
-			ActiveConnections: 0,
+			ActiveConnections: connections,
 			Index:             index,
 			Alive:             true,
 			Proxy:             proxy,
 		})
+	}
+
+	switch configuration.Algorithm {
+	case "weighted-round-robin", "weighted-least-connections":
+		nonZeroServers := pool.ExcludeZeroWeightServers()
+		if len(nonZeroServers) <= 0 {
+			log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
+			os.Exit(1)
+		}
 	}
 
 	server := http.Server{
