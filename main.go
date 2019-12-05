@@ -143,7 +143,22 @@ func (pool *ServerPool) NextPool() int {
 	return current
 }
 
+func rewriteRemoteAddr(r *http.Request) *http.Request {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	r.RemoteAddr = localAddr.String()
+	return r
+}
+
 func loadBalance(w http.ResponseWriter, r *http.Request) {
+	if configuration.ProxyMode == "non-transparent" {
+		r = rewriteRemoteAddr(r)
+	}
 	switch configuration.Algorithm {
 	case "round-robin":
 		index := pool.NextPool()
@@ -203,8 +218,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		proxy := httputil.NewSingleHostReverseProxy(serverURL)
 
+		proxy := httputil.NewSingleHostReverseProxy(serverURL)
 		connections := expvar.NewFloat("connections-" + strconv.Itoa(index))
 
 		pool.AddServer(&Server{

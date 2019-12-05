@@ -4,7 +4,7 @@ Simple layer 7 load balancer with flexible configuration
 
 **Heavily WIP**
 
-## Configuration table
+<!-- ## Configuration table
 
 | Key name                 | Available values                                                                                         | Description                                                                                                                                                           |   |   |
 |--------------------------|----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
@@ -22,4 +22,4 @@ Simple layer 7 load balancer with flexible configuration
 [`"round-robin"`]: #
 [`"weighted-round-robin"`]: #
 [`"least-connections"`]: #
-[`"weighted-least-connections"`]: #
+[`"weighted-least-connections"`]: # -->
