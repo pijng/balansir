@@ -23,8 +23,8 @@ type Configuration struct {
 	ServerList []*Endpoint `json:"server_list"`
 	Protocol   string      `json:"ecosystem_protocol"`
 	Port       int         `json:"load_balancer_port"`
-	Delay      int         `json:"server_check_delay"`
-	Timeout    int         `json:"server_check_timeout"`
+	Delay      int         `json:"server_check_timer"`
+	Timeout    int         `json:"server_check_response_timeout"`
 	ProxyMode  string      `json:"proxy_mode"`
 	Algorithm  string      `json:"balancing_algorithm"`
 }
@@ -45,16 +45,16 @@ type Server struct {
 }
 
 func (server *Server) GetAlive() bool {
-	server.mux.RLock()
+	server.mux.Lock()
+	defer server.mux.Unlock()
 	status := server.Alive
-	server.mux.RUnlock()
 	return status
 }
 
 func (server *Server) SetAlive(status bool) {
 	server.mux.Lock()
+	defer server.mux.Unlock()
 	server.Alive = status
-	server.mux.Unlock()
 }
 
 func (server *Server) CheckAlive() {
@@ -62,10 +62,13 @@ func (server *Server) CheckAlive() {
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
 		server.SetAlive(false)
-		log.Println("Server is down: ", err)
+		log.Println("Server is down:", err)
 		return
 	}
 	connection.Close()
+	if server.GetAlive() == false {
+		log.Println("Server is up:", server.URL.Host)
+	}
 	server.SetAlive(true)
 }
 
@@ -77,8 +80,9 @@ type ServerPool struct {
 func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
 	choice := []randutil.Choice{}
 	serverList := pool.ExcludeZeroWeightServers()
+	serverList = ExcludeUnavailableServers(serverList)
 	for _, server := range serverList {
-		if server.GetAlive() {
+		if server.GetAlive() == true {
 			weight := int(server.Weight * 100)
 			if (weight > 0) && (weight < 1) {
 				weight = 1
@@ -104,8 +108,20 @@ func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
 	return serverList
 }
 
+func ExcludeUnavailableServers(servers []*Server) []*Server {
+	serverList := make([]*Server, 0)
+	for _, server := range servers {
+		if server.GetAlive() == true {
+			serverList = append(serverList, server)
+		}
+	}
+
+	return serverList
+}
+
 func (pool *ServerPool) GetWeightedLeastConnectedServer() *Server {
-	serverList := pool.ExcludeZeroWeightServers()
+	servers := pool.ExcludeZeroWeightServers()
+	serverList := ExcludeUnavailableServers(servers)
 	sort.Slice(serverList, func(i, j int) bool {
 		if (math.Max(serverList[i].ActiveConnections.Value(), 1) / serverList[i].Weight) < (math.Max(serverList[j].ActiveConnections.Value(), 1) / serverList[j].Weight) {
 			return true
@@ -118,6 +134,7 @@ func (pool *ServerPool) GetWeightedLeastConnectedServer() *Server {
 
 func (pool *ServerPool) GetLeastConnectedServer() *Server {
 	serverList := pool.ServerList
+	serverList = ExcludeUnavailableServers(serverList)
 	sort.Slice(serverList, func(i, j int) bool {
 		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
 	})
@@ -202,7 +219,10 @@ func main() {
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
 			if server.Weight < 0 {
-				log.Fatalf(`Negative weight is specified for "%s" endpoint in config["server_list"]. If you want to mark it as dead one, please set it's the weight to 0.`, server.URL)
+				log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
+				os.Exit(1)
+			} else if server.Weight > 1 {
+				log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
 				os.Exit(1)
 			}
 		}
