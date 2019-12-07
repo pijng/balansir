@@ -44,8 +44,8 @@ type Server struct {
 }
 
 func (server *Server) GetAlive() bool {
-	server.mux.Lock()
-	defer server.mux.Unlock()
+	server.mux.RLock()
+	defer server.mux.RUnlock()
 	status := server.Alive
 	return status
 }
