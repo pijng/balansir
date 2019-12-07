@@ -5,7 +5,6 @@ import (
 	"expvar"
 	"io/ioutil"
 	"log"
-	"math"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -95,15 +94,13 @@ func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
 }
 
 func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
-	serverList := pool.ServerList
-	k := 0
-	for _, server := range serverList {
+	servers := pool.ServerList
+	serverList := make([]*Server, 0)
+	for _, server := range servers {
 		if server.Weight > 0 {
-			serverList[k] = server
-			k++
+			serverList = append(serverList, server)
 		}
 	}
-	serverList = serverList[:k]
 
 	return serverList
 }
@@ -123,7 +120,7 @@ func (pool *ServerPool) GetWeightedLeastConnectedServer() *Server {
 	servers := pool.ExcludeZeroWeightServers()
 	serverList := ExcludeUnavailableServers(servers)
 	sort.Slice(serverList, func(i, j int) bool {
-		if (math.Max(serverList[i].ActiveConnections.Value(), 1) / serverList[i].Weight) < (math.Max(serverList[j].ActiveConnections.Value(), 1) / serverList[j].Weight) {
+		if (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight) {
 			return true
 		}
 		return false
