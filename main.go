@@ -19,13 +19,15 @@ import (
 )
 
 type Configuration struct {
-	ServerList []*Endpoint `json:"server_list"`
-	Protocol   string      `json:"ecosystem_protocol"`
-	Port       int         `json:"load_balancer_port"`
-	Delay      int         `json:"server_check_timer"`
-	Timeout    int         `json:"server_check_response_timeout"`
-	ProxyMode  string      `json:"proxy_mode"`
-	Algorithm  string      `json:"balancing_algorithm"`
+	ServerList     []*Endpoint `json:"server_list"`
+	Protocol       string      `json:"connection_protocol"`
+	SSLCertificate string      `json:"ssl_certificate"`
+	SSLKey         string      `json:"ssl_private_key"`
+	Port           int         `json:"load_balancer_port"`
+	Delay          int         `json:"server_check_timer"`
+	Timeout        int         `json:"server_check_response_timeout"`
+	ProxyMode      string      `json:"proxy_mode"`
+	Algorithm      string      `json:"balancing_algorithm"`
 }
 
 type Endpoint struct {
@@ -251,12 +253,16 @@ func main() {
 		}
 	}
 
-	server := http.Server{
-		Addr:    ":" + strconv.Itoa(configuration.Port),
-		Handler: http.HandlerFunc(loadBalance),
-	}
-
 	go serversCheck()
 
-	server.ListenAndServe()
+	if configuration.Protocol == "https" {
+		http.ListenAndServeTLS(":"+strconv.Itoa(configuration.Port), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance))
+	} else {
+		server := http.Server{
+			Addr:    ":" + strconv.Itoa(configuration.Port),
+			Handler: http.HandlerFunc(loadBalance),
+		}
+		server.ListenAndServe()
+	}
+
 }
