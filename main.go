@@ -89,9 +89,6 @@ func (pool *ServerPool) GetPoolChoice() []Choice {
 	for _, server := range serverList {
 		if server.GetAlive() == true {
 			weight := int(server.Weight * 100)
-			if (weight > 0) && (weight < 1) {
-				weight = 1
-			}
 			choice = append(choice, Choice{Weight: weight, Endpoint: server})
 		}
 	}
