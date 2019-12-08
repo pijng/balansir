@@ -1,9 +1,12 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"expvar"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -18,15 +21,17 @@ import (
 )
 
 type Configuration struct {
-	ServerList     []*Endpoint `json:"server_list"`
-	Protocol       string      `json:"connection_protocol"`
-	SSLCertificate string      `json:"ssl_certificate"`
-	SSLKey         string      `json:"ssl_private_key"`
-	Port           int         `json:"load_balancer_port"`
-	Delay          int         `json:"server_check_timer"`
-	Timeout        int         `json:"server_check_response_timeout"`
-	ProxyMode      string      `json:"proxy_mode"`
-	Algorithm      string      `json:"balancing_algorithm"`
+	ServerList         []*Endpoint `json:"server_list"`
+	Protocol           string      `json:"connection_protocol"`
+	SSLCertificate     string      `json:"ssl_certificate"`
+	SSLKey             string      `json:"ssl_private_key"`
+	Port               int         `json:"load_balancer_port"`
+	Delay              int         `json:"server_check_timer"`
+	SessionPersistence bool        `json:"session_persistence"`
+	SessionMaxAge      int         `json:"session_max_age"`
+	Timeout            int         `json:"server_check_response_timeout"`
+	ProxyMode          string      `json:"proxy_mode"`
+	Algorithm          string      `json:"balancing_algorithm"`
 }
 
 type Endpoint struct {
@@ -42,6 +47,7 @@ type Server struct {
 	Alive             bool
 	mux               sync.RWMutex
 	Proxy             *httputil.ReverseProxy
+	ServerHash        string
 }
 
 type Choice struct {
@@ -110,7 +116,7 @@ func WeightedChoice(choices []Choice) (*Server, error) {
 			return choice.Endpoint, nil
 		}
 	}
-	return &Server{}, errors.New("No server returned from weighted random selection")
+	return &Server{}, errors.New("no server returned from weighted random selection")
 }
 
 func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
@@ -158,6 +164,16 @@ func (pool *ServerPool) GetLeastConnectedServer() *Server {
 	return serverList[0]
 }
 
+func (pool *ServerPool) GetServerByHash(hash string) (*Server, error) {
+	serverList := pool.ServerList
+	for i := range serverList {
+		if serverList[i].ServerHash == hash {
+			return serverList[i], nil
+		}
+	}
+	return &Server{}, fmt.Errorf("no server found with (%s) hash", hash)
+}
+
 func (pool *ServerPool) AddServer(server *Server) {
 	pool.ServerList = append(pool.ServerList, server)
 }
@@ -182,14 +198,32 @@ func addRemoteAddrToRequest(r *http.Request) *http.Request {
 	return r
 }
 
+func addSessionPersistenceToResponse(w http.ResponseWriter, hash string) http.ResponseWriter {
+	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
+	return w
+}
+
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	if configuration.ProxyMode == "transparent" {
 		r = addRemoteAddrToRequest(r)
+	}
+	if configuration.SessionPersistence {
+		cookieHash, _ := r.Cookie("_balansir_server_hash")
+		if cookieHash != nil {
+			endpoint, err := pool.GetServerByHash(cookieHash.Value)
+			if err == nil {
+				endpoint.Proxy.ServeHTTP(w, r)
+				return
+			}
+		}
 	}
 	switch configuration.Algorithm {
 	case "round-robin":
 		index := pool.NextPool()
 		endpoint := pool.ServerList[index]
+		if configuration.SessionPersistence {
+			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+		}
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "weighted-round-robin":
 		poolChoice := pool.GetPoolChoice()
@@ -197,14 +231,23 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println(err)
 		}
+		if configuration.SessionPersistence {
+			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+		}
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "least-connections":
 		endpoint := pool.GetLeastConnectedServer()
+		if configuration.SessionPersistence {
+			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
 		endpoint.ActiveConnections.Add(-1)
 	case "weighted-least-connections":
 		endpoint := pool.GetWeightedLeastConnectedServer()
+		if configuration.SessionPersistence {
+			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
 		endpoint.ActiveConnections.Add(-1)
@@ -233,6 +276,8 @@ func main() {
 	}
 	json.Unmarshal(file, &configuration)
 
+	var serverHash string
+
 	for index, server := range configuration.ServerList {
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
@@ -251,6 +296,11 @@ func main() {
 		proxy := httputil.NewSingleHostReverseProxy(serverURL)
 		connections := expvar.NewFloat("connections-" + strconv.Itoa(index))
 
+		if configuration.SessionPersistence {
+			md := md5.Sum([]byte(serverURL.String()))
+			serverHash = hex.EncodeToString(md[:16])
+		}
+
 		pool.AddServer(&Server{
 			URL:               serverURL,
 			Weight:            server.Weight,
@@ -258,6 +308,7 @@ func main() {
 			Index:             index,
 			Alive:             true,
 			Proxy:             proxy,
+			ServerHash:        serverHash,
 		})
 	}
 
