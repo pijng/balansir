@@ -2,20 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"expvar"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/jmcvetta/randutil"
 )
 
 type Configuration struct {
@@ -43,6 +42,11 @@ type Server struct {
 	Alive             bool
 	mux               sync.RWMutex
 	Proxy             *httputil.ReverseProxy
+}
+
+type Choice struct {
+	Endpoint *Server
+	Weight   int
 }
 
 func (server *Server) GetAlive() bool {
@@ -78,8 +82,8 @@ type ServerPool struct {
 	Current    int
 }
 
-func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
-	choice := []randutil.Choice{}
+func (pool *ServerPool) GetPoolChoice() []Choice {
+	choice := []Choice{}
 	serverList := pool.ExcludeZeroWeightServers()
 	serverList = ExcludeUnavailableServers(serverList)
 	for _, server := range serverList {
@@ -88,11 +92,28 @@ func (pool *ServerPool) GetPoolChoice() []randutil.Choice {
 			if (weight > 0) && (weight < 1) {
 				weight = 1
 			}
-			choice = append(choice, randutil.Choice{Weight: weight, Item: server.Index})
+			choice = append(choice, Choice{Weight: weight, Endpoint: server})
 		}
 	}
 
 	return choice
+}
+
+func WeightedChoice(choices []Choice) (*Server, error) {
+	rand.Seed(time.Now().UnixNano())
+	weightShum := 0
+	for _, choice := range choices {
+		weightShum += choice.Weight
+	}
+	randint := rand.Intn(weightShum)
+
+	for _, choice := range choices {
+		randint -= choice.Weight
+		if randint <= 0 {
+			return choice.Endpoint, nil
+		}
+	}
+	return &Server{}, errors.New("No server returned from weighted random selection")
 }
 
 func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
@@ -175,9 +196,10 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "weighted-round-robin":
 		poolChoice := pool.GetPoolChoice()
-		server, _ := randutil.WeightedChoice(poolChoice)
-		index := server.Item.(int)
-		endpoint := pool.ServerList[index]
+		endpoint, err := WeightedChoice(poolChoice)
+		if err != nil {
+			log.Println(err)
+		}
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "least-connections":
 		endpoint := pool.GetLeastConnectedServer()
@@ -219,10 +241,8 @@ func main() {
 		case "weighted-round-robin", "weighted-least-connections":
 			if server.Weight < 0 {
 				log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
-				os.Exit(1)
 			} else if server.Weight > 1 {
 				log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
-				os.Exit(1)
 			}
 		}
 
@@ -249,20 +269,21 @@ func main() {
 		nonZeroServers := pool.ExcludeZeroWeightServers()
 		if len(nonZeroServers) <= 0 {
 			log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
-			os.Exit(1)
 		}
 	}
 
 	go serversCheck()
 
 	if configuration.Protocol == "https" {
-		http.ListenAndServeTLS(":"+strconv.Itoa(configuration.Port), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance))
+		if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.Port), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
+			log.Fatalf(`Error starting TLS http listener: %s`, err)
+		}
 	} else {
 		server := http.Server{
 			Addr:    ":" + strconv.Itoa(configuration.Port),
 			Handler: http.HandlerFunc(loadBalance),
 		}
-		server.ListenAndServe()
+		log.Fatal(server.ListenAndServe())
 	}
 
 }
