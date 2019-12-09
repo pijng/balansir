@@ -32,6 +32,7 @@ type Configuration struct {
 	Timeout            int         `json:"server_check_response_timeout"`
 	ProxyMode          string      `json:"proxy_mode"`
 	Algorithm          string      `json:"balancing_algorithm"`
+	mux                sync.RWMutex
 }
 
 type Endpoint struct {
@@ -69,7 +70,10 @@ func (server *Server) SetAlive(status bool) {
 }
 
 func (server *Server) CheckAlive() {
-	timeout := time.Second * time.Duration(configuration.Timeout)
+	configuration.mux.Lock()
+	configurationTimeout := configuration.Timeout
+	configuration.mux.Unlock()
+	timeout := time.Second * time.Duration(configurationTimeout)
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
 		server.SetAlive(false)
@@ -198,7 +202,7 @@ func addRemoteAddrToRequest(r *http.Request) *http.Request {
 	return r
 }
 
-func addSessionPersistenceToResponse(w http.ResponseWriter, hash string) http.ResponseWriter {
+func SetCookieToResponse(w http.ResponseWriter, hash string) http.ResponseWriter {
 	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
 	return w
 }
@@ -222,7 +226,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		index := pool.NextPool()
 		endpoint := pool.ServerList[index]
 		if configuration.SessionPersistence {
-			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "weighted-round-robin":
@@ -232,13 +236,13 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 		}
 		if configuration.SessionPersistence {
-			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
 	case "least-connections":
 		endpoint := pool.GetLeastConnectedServer()
 		if configuration.SessionPersistence {
-			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
@@ -246,7 +250,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	case "weighted-least-connections":
 		endpoint := pool.GetWeightedLeastConnectedServer()
 		if configuration.SessionPersistence {
-			w = addSessionPersistenceToResponse(w, endpoint.ServerHash)
+			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
@@ -266,6 +270,38 @@ func serversCheck() {
 	}
 }
 
+func RandomStringBytes(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func configWatch() {
+	file, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	md := md5.Sum(file)
+	fileHash := hex.EncodeToString(md[:16])
+	var fileHashNext string
+	for {
+		file, _ = ioutil.ReadFile("config.json")
+		md = md5.Sum(file)
+		fileHashNext = hex.EncodeToString(md[:16])
+		if fileHash != fileHashNext {
+			fileHash = fileHashNext
+			configuration.mux.Lock()
+			json.Unmarshal(file, &configuration)
+			configuration.mux.Unlock()
+			log.Println("Configuration file changes applied to Balansir")
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 var configuration Configuration
 var pool ServerPool
 
@@ -277,7 +313,6 @@ func main() {
 	json.Unmarshal(file, &configuration)
 
 	var serverHash string
-
 	for index, server := range configuration.ServerList {
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
@@ -294,7 +329,7 @@ func main() {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(serverURL)
-		connections := expvar.NewFloat("connections-" + strconv.Itoa(index))
+		connections := expvar.NewFloat(RandomStringBytes(5))
 
 		if configuration.SessionPersistence {
 			md := md5.Sum([]byte(serverURL.String()))
@@ -321,6 +356,7 @@ func main() {
 	}
 
 	go serversCheck()
+	go configWatch()
 
 	if configuration.Protocol == "https" {
 		if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.Port), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
