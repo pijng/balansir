@@ -21,6 +21,7 @@ import (
 )
 
 type Configuration struct {
+	mux                sync.RWMutex
 	ServerList         []*Endpoint `json:"server_list"`
 	Protocol           string      `json:"connection_protocol"`
 	SSLCertificate     string      `json:"ssl_certificate"`
@@ -32,7 +33,6 @@ type Configuration struct {
 	Timeout            int         `json:"server_check_response_timeout"`
 	ProxyMode          string      `json:"proxy_mode"`
 	Algorithm          string      `json:"balancing_algorithm"`
-	mux                sync.RWMutex
 }
 
 type Endpoint struct {
@@ -41,12 +41,12 @@ type Endpoint struct {
 }
 
 type Server struct {
+	mux               sync.RWMutex
 	URL               *url.URL
 	Weight            float64
 	Index             int
 	ActiveConnections *expvar.Float
 	Alive             bool
-	mux               sync.RWMutex
 	Proxy             *httputil.ReverseProxy
 	ServerHash        string
 }
@@ -70,9 +70,7 @@ func (server *Server) SetAlive(status bool) {
 }
 
 func (server *Server) CheckAlive() {
-	configuration.mux.Lock()
 	configurationTimeout := configuration.Timeout
-	configuration.mux.Unlock()
 	timeout := time.Second * time.Duration(configurationTimeout)
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
@@ -88,6 +86,7 @@ func (server *Server) CheckAlive() {
 }
 
 type ServerPool struct {
+	mux        sync.RWMutex
 	ServerList []*Server
 	Current    int
 }
@@ -97,7 +96,7 @@ func (pool *ServerPool) GetPoolChoice() []Choice {
 	serverList := pool.ExcludeZeroWeightServers()
 	serverList = ExcludeUnavailableServers(serverList)
 	for _, server := range serverList {
-		if server.GetAlive() == true {
+		if server.GetAlive() {
 			weight := int(server.Weight * 100)
 			choice = append(choice, Choice{Weight: weight, Endpoint: server})
 		}
@@ -114,7 +113,17 @@ func WeightedChoice(choices []Choice) (*Server, error) {
 	}
 	randint := rand.Intn(weightShum)
 
+	sort.Slice(choices, func(i, j int) bool {
+		if choices[i].Weight > choices[j].Weight {
+			return true
+		}
+		return false
+	})
+
 	for _, choice := range choices {
+		if choice.Weight == 100 {
+			return choice.Endpoint, nil
+		}
 		randint -= choice.Weight
 		if randint <= 0 {
 			return choice.Endpoint, nil
@@ -138,7 +147,7 @@ func (pool *ServerPool) ExcludeZeroWeightServers() []*Server {
 func ExcludeUnavailableServers(servers []*Server) []*Server {
 	serverList := make([]*Server, 0)
 	for _, server := range servers {
-		if server.GetAlive() == true {
+		if server.GetAlive() {
 			serverList = append(serverList, server)
 		}
 	}
@@ -180,6 +189,10 @@ func (pool *ServerPool) GetServerByHash(hash string) (*Server, error) {
 
 func (pool *ServerPool) AddServer(server *Server) {
 	pool.ServerList = append(pool.ServerList, server)
+}
+
+func (pool *ServerPool) ClearPool() {
+	pool.ServerList = nil
 }
 
 func (pool *ServerPool) NextPool() int {
@@ -263,14 +276,18 @@ func serversCheck() {
 	for {
 		select {
 		case <-timer.C:
+			wg.Wait()
 			for _, server := range pool.ServerList {
 				server.CheckAlive()
 			}
+			configuration.mux.Lock()
+			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
+			configuration.mux.Unlock()
 		}
 	}
 }
 
-func RandomStringBytes(n int) string {
+func randomStringBytes(n int) string {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, n)
 	for i := range b {
@@ -279,40 +296,16 @@ func RandomStringBytes(n int) string {
 	return string(b)
 }
 
-func configWatch() {
-	file, err := ioutil.ReadFile("config.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	md := md5.Sum(file)
-	fileHash := hex.EncodeToString(md[:16])
-	var fileHashNext string
-	for {
-		file, _ = ioutil.ReadFile("config.json")
-		md = md5.Sum(file)
-		fileHashNext = hex.EncodeToString(md[:16])
-		if fileHash != fileHashNext {
-			fileHash = fileHashNext
-			configuration.mux.Lock()
-			json.Unmarshal(file, &configuration)
-			configuration.mux.Unlock()
-			log.Println("Configuration file changes applied to Balansir")
-		}
-		time.Sleep(time.Second)
-	}
-}
+func fillConfiguration(file []byte, config *Configuration) {
+	config.mux.Lock()
 
-var configuration Configuration
-var pool ServerPool
-
-func main() {
-	file, err := ioutil.ReadFile("config.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	json.Unmarshal(file, &configuration)
+	json.Unmarshal(file, &config)
 
 	var serverHash string
+	wg.Add(len(configuration.ServerList))
+
+	pool.ClearPool()
+
 	for index, server := range configuration.ServerList {
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
@@ -329,7 +322,7 @@ func main() {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(serverURL)
-		connections := expvar.NewFloat(RandomStringBytes(5))
+		connections := expvar.NewFloat(randomStringBytes(5))
 
 		if configuration.SessionPersistence {
 			md := md5.Sum([]byte(serverURL.String()))
@@ -345,6 +338,7 @@ func main() {
 			Proxy:             proxy,
 			ServerHash:        serverHash,
 		})
+		wg.Done()
 	}
 
 	switch configuration.Algorithm {
@@ -354,6 +348,41 @@ func main() {
 			log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
 		}
 	}
+	config.mux.Unlock()
+}
+
+func configWatch() {
+	file, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	md := md5.Sum(file)
+	fileHash := hex.EncodeToString(md[:16])
+	var fileHashNext string
+	for {
+		file, _ = ioutil.ReadFile("config.json")
+		md = md5.Sum(file)
+		fileHashNext = hex.EncodeToString(md[:16])
+		if fileHash != fileHashNext {
+			fileHash = fileHashNext
+			fillConfiguration(file, &configuration)
+			log.Println("Configuration file changes applied to Balansir")
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+var configuration Configuration
+var pool ServerPool
+var wg sync.WaitGroup
+
+func main() {
+	file, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fillConfiguration(file, &configuration)
 
 	go serversCheck()
 	go configWatch()
