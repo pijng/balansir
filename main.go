@@ -51,6 +51,11 @@ type Server struct {
 	ServerHash        string
 }
 
+type Tunnel struct {
+	mux sync.RWMutex
+	wg  sync.WaitGroup
+}
+
 type Choice struct {
 	Endpoint *Server
 	Weight   int
@@ -221,6 +226,9 @@ func SetCookieToResponse(w http.ResponseWriter, hash string) http.ResponseWriter
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
+	tunnel.mux.Lock()
+	tunnel.wg.Wait()
+	tunnel.mux.Unlock()
 	if configuration.ProxyMode == "transparent" {
 		r = addRemoteAddrToRequest(r)
 	}
@@ -236,13 +244,16 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 	switch configuration.Algorithm {
 	case "round-robin":
+		processingRequests.Add(1)
 		index := pool.NextPool()
 		endpoint := pool.ServerList[index]
 		if configuration.SessionPersistence {
 			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
+		processingRequests.Done()
 	case "weighted-round-robin":
+		processingRequests.Add(1)
 		poolChoice := pool.GetPoolChoice()
 		endpoint, err := WeightedChoice(poolChoice)
 		if err != nil {
@@ -252,7 +263,9 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			w = SetCookieToResponse(w, endpoint.ServerHash)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
+		processingRequests.Done()
 	case "least-connections":
+		processingRequests.Add(1)
 		endpoint := pool.GetLeastConnectedServer()
 		if configuration.SessionPersistence {
 			w = SetCookieToResponse(w, endpoint.ServerHash)
@@ -260,7 +273,9 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
 		endpoint.ActiveConnections.Add(-1)
+		processingRequests.Done()
 	case "weighted-least-connections":
+		processingRequests.Add(1)
 		endpoint := pool.GetWeightedLeastConnectedServer()
 		if configuration.SessionPersistence {
 			w = SetCookieToResponse(w, endpoint.ServerHash)
@@ -268,6 +283,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
 		endpoint.ActiveConnections.Add(-1)
+		processingRequests.Done()
 	}
 }
 
@@ -297,6 +313,11 @@ func randomStringBytes(n int) string {
 }
 
 func fillConfiguration(file []byte, config *Configuration) {
+	tunnel.mux.Lock()
+	tunnel.wg.Add(1)
+	tunnel.mux.Unlock()
+
+	processingRequests.Wait()
 	config.mux.Lock()
 
 	json.Unmarshal(file, &config)
@@ -349,6 +370,7 @@ func fillConfiguration(file []byte, config *Configuration) {
 		}
 	}
 	config.mux.Unlock()
+	tunnel.wg.Done()
 }
 
 func configWatch() {
@@ -375,6 +397,8 @@ func configWatch() {
 var configuration Configuration
 var pool ServerPool
 var wg sync.WaitGroup
+var tunnel Tunnel
+var processingRequests sync.WaitGroup
 
 func main() {
 	file, err := ioutil.ReadFile("config.json")
