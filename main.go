@@ -215,6 +215,21 @@ func (pool *ServerPool) NextPool() int {
 	return current
 }
 
+func compareServerPools(prevPoolHash string, incomingPool []*Endpoint) bool {
+	var sumOfServerHash string
+	for _, server := range incomingPool {
+		serialized, _ := json.Marshal(server)
+		sumOfServerHash += string(serialized)
+	}
+	md := md5.Sum([]byte(sumOfServerHash))
+	poolHash := hex.EncodeToString(md[:16])
+	if prevPoolHash == poolHash {
+		return false
+	}
+	serverPoolHash = poolHash
+	return true
+}
+
 func addRemoteAddrToRequest(r *http.Request) *http.Request {
 	r.Header.Set("X-Forwarded-For", r.RemoteAddr)
 	return r
@@ -320,53 +335,57 @@ func fillConfiguration(file []byte, config *Configuration) {
 	processingRequests.Wait()
 	config.mux.Lock()
 
+	wg.Add(1)
 	json.Unmarshal(file, &config)
+	wg.Done()
 
-	var serverHash string
-	wg.Add(len(configuration.ServerList))
+	if compareServerPools(serverPoolHash, configuration.ServerList) {
+		var serverHash string
+		wg.Add(len(configuration.ServerList))
 
-	pool.ClearPool()
+		pool.ClearPool()
 
-	for index, server := range configuration.ServerList {
+		for index, server := range configuration.ServerList {
+			switch configuration.Algorithm {
+			case "weighted-round-robin", "weighted-least-connections":
+				if server.Weight < 0 {
+					log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
+				} else if server.Weight > 1 {
+					log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
+				}
+			}
+
+			serverURL, err := url.Parse(configuration.Protocol + "://" + server.URL)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			proxy := httputil.NewSingleHostReverseProxy(serverURL)
+			connections := expvar.NewFloat(randomStringBytes(5))
+
+			if configuration.SessionPersistence {
+				md := md5.Sum([]byte(serverURL.String()))
+				serverHash = hex.EncodeToString(md[:16])
+			}
+
+			pool.AddServer(&Server{
+				URL:               serverURL,
+				Weight:            server.Weight,
+				ActiveConnections: connections,
+				Index:             index,
+				Alive:             true,
+				Proxy:             proxy,
+				ServerHash:        serverHash,
+			})
+			wg.Done()
+		}
+
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
-			if server.Weight < 0 {
-				log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
-			} else if server.Weight > 1 {
-				log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
+			nonZeroServers := pool.ExcludeZeroWeightServers()
+			if len(nonZeroServers) <= 0 {
+				log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
 			}
-		}
-
-		serverURL, err := url.Parse(configuration.Protocol + "://" + server.URL)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		proxy := httputil.NewSingleHostReverseProxy(serverURL)
-		connections := expvar.NewFloat(randomStringBytes(5))
-
-		if configuration.SessionPersistence {
-			md := md5.Sum([]byte(serverURL.String()))
-			serverHash = hex.EncodeToString(md[:16])
-		}
-
-		pool.AddServer(&Server{
-			URL:               serverURL,
-			Weight:            server.Weight,
-			ActiveConnections: connections,
-			Index:             index,
-			Alive:             true,
-			Proxy:             proxy,
-			ServerHash:        serverHash,
-		})
-		wg.Done()
-	}
-
-	switch configuration.Algorithm {
-	case "weighted-round-robin", "weighted-least-connections":
-		nonZeroServers := pool.ExcludeZeroWeightServers()
-		if len(nonZeroServers) <= 0 {
-			log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
 		}
 	}
 	config.mux.Unlock()
@@ -399,6 +418,7 @@ var pool ServerPool
 var wg sync.WaitGroup
 var tunnel Tunnel
 var processingRequests sync.WaitGroup
+var serverPoolHash string
 
 func main() {
 	file, err := ioutil.ReadFile("config.json")
