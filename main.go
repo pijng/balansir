@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,7 +27,8 @@ type Configuration struct {
 	Protocol           string      `json:"connection_protocol"`
 	SSLCertificate     string      `json:"ssl_certificate"`
 	SSLKey             string      `json:"ssl_private_key"`
-	Port               int         `json:"load_balancer_port"`
+	Port               int         `json:"http_port"`
+	TLSPort            int         `json:"https_port"`
 	Delay              int         `json:"server_check_timer"`
 	SessionPersistence bool        `json:"session_persistence"`
 	SessionMaxAge      int         `json:"session_max_age"`
@@ -413,6 +415,17 @@ func configWatch() {
 	}
 }
 
+func removePortFromHost(host string) string {
+	if i := strings.Index(host, ":"); i != -1 {
+		host = host[:i]
+	}
+	return host
+}
+
+func redirectTLS(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://"+removePortFromHost(r.Host), http.StatusMovedPermanently)
+}
+
 var configuration Configuration
 var pool ServerPool
 var wg sync.WaitGroup
@@ -432,7 +445,15 @@ func main() {
 	go configWatch()
 
 	if configuration.Protocol == "https" {
-		if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.Port), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
+		go func() {
+			server := http.Server{
+				Addr:    ":" + strconv.Itoa(configuration.Port),
+				Handler: http.HandlerFunc(redirectTLS),
+			}
+			log.Fatal(server.ListenAndServe())
+		}()
+
+		if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
 			log.Fatalf(`Error starting TLS http listener: %s`, err)
 		}
 	} else {
