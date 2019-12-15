@@ -1,16 +1,16 @@
 {
     "server_list": [
-        {"endpoint": "127.0.0.1:5000", "weight": 0.8},
-        {"endpoint": "127.0.0.1:5001", "weight": 0.4}
+        {"endpoint": "127.0.0.1:80", "weight": 0.5}
     ],
-    "connection_protocol": "http",
+    "connection_protocol": "https",
     "ssl_certificate": "./server.crt",
     "ssl_private_key": "./server.key",
-    "load_balancer_port": 1441,
-    "server_check_timer": 1,
-    "server_check_response_timeout": 2,
-    "session_persistence": true,
+    "http_port": 80,
+    "https_port": 443,
+    "server_check_timer": 2,
+    "server_check_response_timeout": 5,
+    "session_persistence": false,
     "session_max_age": 300,
     "proxy_mode": "transparent",
-    "balancing_algorithm": "round-robin"
+    "balancing_algorithm": "weighted-round-robin"
 }
