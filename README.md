@@ -7,10 +7,10 @@ Layer 7 load balancer with simple configuration
 **Documentaion coming at the end of December**
 
 ## Roadmap to near future
-- [ ] Add config hot reload
-- [ ] Check HTTPS stability
+- [x] Add config hot reload
+- [x] Check HTTPS stability
 - [ ] Add benchmark testing
-- [ ] Add Letsencrypt integration
+- [x] Add Letsencrypt integration
 - [ ] Add cache algorithms
 - [ ] Add dashboard (web UI with Balansir metrics)
 
