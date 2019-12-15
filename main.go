@@ -34,6 +34,9 @@ type Configuration struct {
 	TLSPort            int         `json:"https_port"`
 	Delay              int         `json:"server_check_timer"`
 	SessionPersistence bool        `json:"session_persistence"`
+	Autocert           bool        `json:"autocert"`
+	WhiteHosts         string      `json:"white_hosts"`
+	CertDir            string      `json:"autocert_dir"`
 	SessionMaxAge      int         `json:"session_max_age"`
 	Timeout            int         `json:"server_check_response_timeout"`
 	ProxyMode          string      `json:"proxy_mode"`
@@ -425,6 +428,53 @@ func removePortFromHost(host string) string {
 	return host
 }
 
+func redirectTLS(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://"+removePortFromHost(r.Host), http.StatusMovedPermanently)
+}
+
+func ListenAndServeTLSWithAutocert() {
+
+	certManager := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(configuration.WhiteHosts),
+		Cache:      autocert.DirCache(configuration.CertDir),
+	}
+
+	server := &http.Server{
+		Addr: ":" + strconv.Itoa(configuration.TLSPort),
+		TLSConfig: &tls.Config{
+			GetCertificate: certManager.GetCertificate,
+		},
+	}
+
+	go func() {
+		http.HandleFunc("/", loadBalance)
+		http.ListenAndServe(
+			":"+strconv.Itoa(configuration.Port),
+			certManager.HTTPHandler(nil),
+		)
+	}()
+
+	err := server.ListenAndServeTLS("", "")
+	if err != nil {
+		log.Fatalf(`Error starting TLS listener: %s`, err)
+	}
+}
+
+func ListenAndServeTLSWithSelfSignedCerts() {
+	go func() {
+		server := http.Server{
+			Addr:    ":" + strconv.Itoa(configuration.Port),
+			Handler: http.HandlerFunc(redirectTLS),
+		}
+		log.Fatal(server.ListenAndServe())
+	}()
+
+	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
+		log.Fatalf(`Error starting TLS listener: %s`, err)
+	}
+}
+
 var configuration Configuration
 var pool ServerPool
 var wg sync.WaitGroup
@@ -445,31 +495,10 @@ func main() {
 
 	if configuration.Protocol == "https" {
 
-		dataDir := "certs"
-
-		certManager := &autocert.Manager{
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(),
-			Cache:      autocert.DirCache(dataDir),
-		}
-
-		server := &http.Server{
-			Addr: ":" + strconv.Itoa(configuration.TLSPort),
-			TLSConfig: &tls.Config{
-				GetCertificate: certManager.GetCertificate,
-			},
-		}
-
-		go func() {
-			http.ListenAndServe(
-				":"+strconv.Itoa(configuration.Port),
-				certManager.HTTPHandler(nil),
-			)
-		}()
-
-		err := server.ListenAndServeTLS("", "")
-		if err != nil {
-			log.Fatalf("httpsSrv.ListendAndServeTLS() failed with %s", err)
+		if configuration.Autocert {
+			ListenAndServeTLSWithAutocert()
+		} else {
+			ListenAndServeTLSWithSelfSignedCerts()
 		}
 	} else {
 		server := http.Server{
