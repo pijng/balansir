@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/acme/autocert"
 )
 
 type Configuration struct {
@@ -422,10 +425,6 @@ func removePortFromHost(host string) string {
 	return host
 }
 
-func redirectTLS(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://"+removePortFromHost(r.Host), http.StatusMovedPermanently)
-}
-
 var configuration Configuration
 var pool ServerPool
 var wg sync.WaitGroup
@@ -445,16 +444,32 @@ func main() {
 	go configWatch()
 
 	if configuration.Protocol == "https" {
+
+		dataDir := "certs"
+
+		certManager := &autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(),
+			Cache:      autocert.DirCache(dataDir),
+		}
+
+		server := &http.Server{
+			Addr: ":" + strconv.Itoa(configuration.TLSPort),
+			TLSConfig: &tls.Config{
+				GetCertificate: certManager.GetCertificate,
+			},
+		}
+
 		go func() {
-			server := http.Server{
-				Addr:    ":" + strconv.Itoa(configuration.Port),
-				Handler: http.HandlerFunc(redirectTLS),
-			}
-			log.Fatal(server.ListenAndServe())
+			http.ListenAndServe(
+				":"+strconv.Itoa(configuration.Port),
+				certManager.HTTPHandler(nil),
+			)
 		}()
 
-		if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
-			log.Fatalf(`Error starting TLS http listener: %s`, err)
+		err := server.ListenAndServeTLS("", "")
+		if err != nil {
+			log.Fatalf("httpsSrv.ListendAndServeTLS() failed with %s", err)
 		}
 	} else {
 		server := http.Server{
