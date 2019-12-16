@@ -2,6 +2,7 @@ package confg
 
 import "sync"
 
+//Configuration ...
 type Configuration struct {
 	Mux                sync.RWMutex
 	ServerList         []*Endpoint `json:"server_list"`
@@ -21,6 +22,7 @@ type Configuration struct {
 	Algorithm          string      `json:"balancing_algorithm"`
 }
 
+//Endpoint ...
 type Endpoint struct {
 	URL    string  `json:"endpoint"`
 	Weight float64 `json:"weight"`

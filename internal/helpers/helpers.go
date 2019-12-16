@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+//RemovePortFromHost ...
 func RemovePortFromHost(host string) string {
 	if i := strings.Index(host, ":"); i != -1 {
 		host = host[:i]
@@ -13,10 +14,12 @@ func RemovePortFromHost(host string) string {
 	return host
 }
 
+//RedirectTLS ...
 func RedirectTLS(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://"+RemovePortFromHost(r.Host), http.StatusMovedPermanently)
 }
 
+//RandomStringBytes ...
 func RandomStringBytes(n int) string {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, n)
@@ -26,6 +29,7 @@ func RandomStringBytes(n int) string {
 	return string(b)
 }
 
+//AddRemoteAddrToRequest ...
 func AddRemoteAddrToRequest(r *http.Request) *http.Request {
 	r.Header.Set("X-Forwarded-For", r.RemoteAddr)
 	return r

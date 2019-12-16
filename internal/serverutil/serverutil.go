@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+//Server ...
 type Server struct {
 	mux               sync.RWMutex
 	URL               *url.URL
@@ -22,6 +23,7 @@ type Server struct {
 	ServerHash        string
 }
 
+//GetAlive ...
 func (server *Server) GetAlive() bool {
 	server.mux.RLock()
 	defer server.mux.RUnlock()
@@ -29,12 +31,14 @@ func (server *Server) GetAlive() bool {
 	return status
 }
 
+//SetAlive ...
 func (server *Server) SetAlive(status bool) {
 	server.mux.Lock()
 	defer server.mux.Unlock()
 	server.Alive = status
 }
 
+//CheckAlive ...
 func (server *Server) CheckAlive(configuration *confg.Configuration) {
 	configurationTimeout := configuration.Timeout
 	timeout := time.Second * time.Duration(configurationTimeout)
