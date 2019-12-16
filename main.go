@@ -25,37 +25,37 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-type Tunnel struct {
+type tunnel struct {
 	mux sync.RWMutex
 	wg  sync.WaitGroup
 }
 
-type Choice struct {
+type endpointChoice struct {
 	Endpoint *serverutil.Server
 	Weight   int
 }
 
-type ServerPool struct {
+type serverPool struct {
 	mux        sync.RWMutex
 	ServerList []*serverutil.Server
 	Current    int
 }
 
-func (pool *ServerPool) getPoolChoice() []Choice {
-	choice := []Choice{}
+func (pool *serverPool) getPoolChoice() []endpointChoice {
+	choice := []endpointChoice{}
 	serverList := pool.excludeZeroWeightServers()
 	serverList = excludeUnavailableServers(serverList)
 	for _, server := range serverList {
 		if server.GetAlive() {
 			weight := int(server.Weight * 100)
-			choice = append(choice, Choice{Weight: weight, Endpoint: server})
+			choice = append(choice, endpointChoice{Weight: weight, Endpoint: server})
 		}
 	}
 
 	return choice
 }
 
-func weightedChoice(choices []Choice) (*serverutil.Server, error) {
+func weightedChoice(choices []endpointChoice) (*serverutil.Server, error) {
 	rand.Seed(time.Now().UnixNano())
 	weightShum := 0
 	for _, choice := range choices {
@@ -82,7 +82,7 @@ func weightedChoice(choices []Choice) (*serverutil.Server, error) {
 	return &serverutil.Server{}, errors.New("no server returned from weighted random selection")
 }
 
-func (pool *ServerPool) excludeZeroWeightServers() []*serverutil.Server {
+func (pool *serverPool) excludeZeroWeightServers() []*serverutil.Server {
 	servers := pool.ServerList
 	serverList := make([]*serverutil.Server, 0)
 	for _, server := range servers {
@@ -105,7 +105,7 @@ func excludeUnavailableServers(servers []*serverutil.Server) []*serverutil.Serve
 	return serverList
 }
 
-func (pool *ServerPool) getWeightedLeastConnectedServer() *serverutil.Server {
+func (pool *serverPool) getWeightedLeastConnectedServer() *serverutil.Server {
 	servers := pool.excludeZeroWeightServers()
 	serverList := excludeUnavailableServers(servers)
 	sort.Slice(serverList, func(i, j int) bool {
@@ -118,7 +118,7 @@ func (pool *ServerPool) getWeightedLeastConnectedServer() *serverutil.Server {
 	return serverList[0]
 }
 
-func (pool *ServerPool) getLeastConnectedServer() *serverutil.Server {
+func (pool *serverPool) getLeastConnectedServer() *serverutil.Server {
 	serverList := pool.ServerList
 	serverList = excludeUnavailableServers(serverList)
 	sort.Slice(serverList, func(i, j int) bool {
@@ -127,7 +127,7 @@ func (pool *ServerPool) getLeastConnectedServer() *serverutil.Server {
 	return serverList[0]
 }
 
-func (pool *ServerPool) getServerByHash(hash string) (*serverutil.Server, error) {
+func (pool *serverPool) getServerByHash(hash string) (*serverutil.Server, error) {
 	serverList := pool.ServerList
 	for i := range serverList {
 		if serverList[i].ServerHash == hash {
@@ -137,15 +137,15 @@ func (pool *ServerPool) getServerByHash(hash string) (*serverutil.Server, error)
 	return &serverutil.Server{}, fmt.Errorf("no server found with (%s) hash", hash)
 }
 
-func (pool *ServerPool) addServer(server *serverutil.Server) {
+func (pool *serverPool) addServer(server *serverutil.Server) {
 	pool.ServerList = append(pool.ServerList, server)
 }
 
-func (pool *ServerPool) clearPool() {
+func (pool *serverPool) clearPool() {
 	pool.ServerList = nil
 }
 
-func (pool *ServerPool) nextPool() int {
+func (pool *serverPool) nextPool() int {
 	var current int
 	if (pool.Current + 1) > (len(pool.ServerList) - 1) {
 		pool.Current = 0
@@ -181,9 +181,9 @@ func setCookieToResponse(w http.ResponseWriter, hash string) http.ResponseWriter
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
-	tunnel.mux.Lock()
-	tunnel.wg.Wait()
-	tunnel.mux.Unlock()
+	requestFlow.mux.Lock()
+	requestFlow.wg.Wait()
+	requestFlow.mux.Unlock()
 	if configuration.ProxyMode == "transparent" {
 		r = helpers.AddRemoteAddrToRequest(r)
 	}
@@ -259,9 +259,9 @@ func serversCheck() {
 }
 
 func fillConfiguration(file []byte, config *confg.Configuration) {
-	tunnel.mux.Lock()
-	tunnel.wg.Add(1)
-	tunnel.mux.Unlock()
+	requestFlow.mux.Lock()
+	requestFlow.wg.Add(1)
+	requestFlow.mux.Unlock()
 
 	processingRequests.Wait()
 	config.Mux.Lock()
@@ -320,7 +320,7 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 		}
 	}
 	config.Mux.Unlock()
-	tunnel.wg.Done()
+	requestFlow.wg.Done()
 }
 
 func configWatch() {
@@ -388,9 +388,9 @@ func listenAndServeTLSWithSelfSignedCerts() {
 }
 
 var configuration confg.Configuration
-var pool ServerPool
+var pool serverPool
 var wg sync.WaitGroup
-var tunnel Tunnel
+var requestFlow tunnel
 var processingRequests sync.WaitGroup
 var serverPoolHash string
 
