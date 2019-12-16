@@ -1,8 +1,8 @@
 # 💢 Balansir
 
-<p align="center">
+<!-- <p align="center">
     <img src="content/assets/balansir_small.png" alt="Balansir" title="Balansir" />
-</p>
+</p> -->
 
 Layer 7 load balancer with simple configuration
 
