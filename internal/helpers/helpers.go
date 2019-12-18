@@ -1,6 +1,10 @@
 package helpers
 
 import (
+	"balansir/internal/confg"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -33,4 +37,26 @@ func RandomStringBytes(n int) string {
 func AddRemoteAddrToRequest(r *http.Request) *http.Request {
 	r.Header.Set("X-Forwarded-For", r.RemoteAddr)
 	return r
+}
+
+//SetCookieToResponse ...
+func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *confg.Configuration) http.ResponseWriter {
+	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
+	return w
+}
+
+//ServerPoolsEquals ...
+func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool []*confg.Endpoint) bool {
+	var sumOfServerHash string
+	for _, server := range incomingPool {
+		serialized, _ := json.Marshal(server)
+		sumOfServerHash += string(serialized)
+	}
+	md := md5.Sum([]byte(sumOfServerHash))
+	poolHash := hex.EncodeToString(md[:16])
+	if prevPoolHash == poolHash {
+		return false
+	}
+	serverPoolHash = &poolHash
+	return true
 }

@@ -3,22 +3,20 @@ package main
 import (
 	"balansir/internal/confg"
 	"balansir/internal/helpers"
+	"balansir/internal/poolutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"expvar"
-	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,156 +28,6 @@ type tunnel struct {
 	wg  sync.WaitGroup
 }
 
-type endpointChoice struct {
-	Endpoint *serverutil.Server
-	Weight   int
-}
-
-type serverPool struct {
-	mux        sync.RWMutex
-	ServerList []*serverutil.Server
-	Current    int
-}
-
-func (pool *serverPool) getPoolChoice() []endpointChoice {
-	choice := []endpointChoice{}
-	serverList := pool.excludeZeroWeightServers()
-	serverList = excludeUnavailableServers(serverList)
-	for _, server := range serverList {
-		if server.GetAlive() {
-			weight := int(server.Weight * 100)
-			choice = append(choice, endpointChoice{Weight: weight, Endpoint: server})
-		}
-	}
-
-	return choice
-}
-
-func weightedChoice(choices []endpointChoice) (*serverutil.Server, error) {
-	rand.Seed(time.Now().UnixNano())
-	weightShum := 0
-	for _, choice := range choices {
-		weightShum += choice.Weight
-	}
-	randint := rand.Intn(weightShum)
-
-	sort.Slice(choices, func(i, j int) bool {
-		if choices[i].Weight > choices[j].Weight {
-			return true
-		}
-		return false
-	})
-
-	for _, choice := range choices {
-		if choice.Weight == 100 {
-			return choice.Endpoint, nil
-		}
-		randint -= choice.Weight
-		if randint <= 0 {
-			return choice.Endpoint, nil
-		}
-	}
-	return &serverutil.Server{}, errors.New("no server returned from weighted random selection")
-}
-
-func (pool *serverPool) excludeZeroWeightServers() []*serverutil.Server {
-	servers := pool.ServerList
-	serverList := make([]*serverutil.Server, 0)
-	for _, server := range servers {
-		if server.Weight > 0 {
-			serverList = append(serverList, server)
-		}
-	}
-
-	return serverList
-}
-
-func excludeUnavailableServers(servers []*serverutil.Server) []*serverutil.Server {
-	serverList := make([]*serverutil.Server, 0)
-	for _, server := range servers {
-		if server.GetAlive() {
-			serverList = append(serverList, server)
-		}
-	}
-
-	return serverList
-}
-
-func (pool *serverPool) getWeightedLeastConnectedServer() *serverutil.Server {
-	servers := pool.excludeZeroWeightServers()
-	serverList := excludeUnavailableServers(servers)
-	sort.Slice(serverList, func(i, j int) bool {
-		if (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight) {
-			return true
-		}
-		return false
-	})
-
-	return serverList[0]
-}
-
-func (pool *serverPool) getLeastConnectedServer() *serverutil.Server {
-	serverList := pool.ServerList
-	serverList = excludeUnavailableServers(serverList)
-	sort.Slice(serverList, func(i, j int) bool {
-		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
-	})
-	return serverList[0]
-}
-
-func (pool *serverPool) getServerByHash(hash string) (*serverutil.Server, error) {
-	serverList := pool.ServerList
-	for i := range serverList {
-		if serverList[i].ServerHash == hash {
-			return serverList[i], nil
-		}
-	}
-	return &serverutil.Server{}, fmt.Errorf("no server found with (%s) hash", hash)
-}
-
-func (pool *serverPool) addServer(server *serverutil.Server) {
-	pool.ServerList = append(pool.ServerList, server)
-}
-
-func (pool *serverPool) clearPool() {
-	pool.ServerList = nil
-}
-
-func (pool *serverPool) nextPool() int {
-	var current int
-	if (pool.Current + 1) > (len(pool.ServerList) - 1) {
-		pool.Current = 0
-		current = pool.Current
-	} else {
-		pool.Current = pool.Current + 1
-		current = pool.Current
-	}
-	if !pool.ServerList[current].GetAlive() {
-		return pool.nextPool()
-	}
-	return current
-}
-
-func compareServerPools(prevPoolHash string, incomingPool []*confg.Endpoint) bool {
-	var sumOfServerHash string
-	for _, server := range incomingPool {
-		serialized, _ := json.Marshal(server)
-		sumOfServerHash += string(serialized)
-	}
-	md := md5.Sum([]byte(sumOfServerHash))
-	poolHash := hex.EncodeToString(md[:16])
-	if prevPoolHash == poolHash {
-		return false
-	}
-	serverPoolHash = poolHash
-	return true
-}
-
-func setCookieToResponse(w http.ResponseWriter, hash string) http.ResponseWriter {
-	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
-	return w
-}
-
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	requestFlow.mux.Lock()
 	requestFlow.wg.Wait()
@@ -187,53 +35,58 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	if configuration.ProxyMode == "transparent" {
 		r = helpers.AddRemoteAddrToRequest(r)
 	}
+
 	if configuration.SessionPersistence {
 		cookieHash, _ := r.Cookie("_balansir_server_hash")
 		if cookieHash != nil {
-			endpoint, err := pool.getServerByHash(cookieHash.Value)
+			endpoint, err := pool.GetServerByHash(cookieHash.Value)
 			if err == nil {
 				endpoint.Proxy.ServeHTTP(w, r)
 				return
 			}
 		}
 	}
+
 	switch configuration.Algorithm {
 	case "round-robin":
 		processingRequests.Add(1)
-		index := pool.nextPool()
+		index := pool.NextPool()
 		endpoint := pool.ServerList[index]
 		if configuration.SessionPersistence {
-			w = setCookieToResponse(w, endpoint.ServerHash)
+			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
 		processingRequests.Done()
+
 	case "weighted-round-robin":
 		processingRequests.Add(1)
-		poolChoice := pool.getPoolChoice()
-		endpoint, err := weightedChoice(poolChoice)
+		poolChoice := pool.GetPoolChoice()
+		endpoint, err := poolutil.WeightedChoice(poolChoice)
 		if err != nil {
 			log.Println(err)
 		}
 		if configuration.SessionPersistence {
-			w = setCookieToResponse(w, endpoint.ServerHash)
+			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.Proxy.ServeHTTP(w, r)
 		processingRequests.Done()
+
 	case "least-connections":
 		processingRequests.Add(1)
-		endpoint := pool.getLeastConnectedServer()
+		endpoint := pool.GetLeastConnectedServer()
 		if configuration.SessionPersistence {
-			w = setCookieToResponse(w, endpoint.ServerHash)
+			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
 		endpoint.ActiveConnections.Add(-1)
 		processingRequests.Done()
+
 	case "weighted-least-connections":
 		processingRequests.Add(1)
-		endpoint := pool.getWeightedLeastConnectedServer()
+		endpoint := pool.GetWeightedLeastConnectedServer()
 		if configuration.SessionPersistence {
-			w = setCookieToResponse(w, endpoint.ServerHash)
+			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.ActiveConnections.Add(1)
 		endpoint.Proxy.ServeHTTP(w, r)
@@ -270,11 +123,11 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 	json.Unmarshal(file, &config)
 	wg.Done()
 
-	if compareServerPools(serverPoolHash, configuration.ServerList) {
+	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
 		var serverHash string
 		wg.Add(len(configuration.ServerList))
 
-		pool.clearPool()
+		pool.ClearPool()
 
 		for index, server := range configuration.ServerList {
 			switch configuration.Algorithm {
@@ -286,7 +139,7 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 				}
 			}
 
-			serverURL, err := url.Parse(configuration.Protocol + "://" + server.URL)
+			serverURL, err := url.Parse(configuration.Protocol + "://" + strings.TrimSpace(server.URL))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -299,7 +152,7 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 				serverHash = hex.EncodeToString(md[:16])
 			}
 
-			pool.addServer(&serverutil.Server{
+			pool.AddServer(&serverutil.Server{
 				URL:               serverURL,
 				Weight:            server.Weight,
 				ActiveConnections: connections,
@@ -313,7 +166,7 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 
 		switch configuration.Algorithm {
 		case "weighted-round-robin", "weighted-least-connections":
-			nonZeroServers := pool.excludeZeroWeightServers()
+			nonZeroServers := pool.ExcludeZeroWeightServers()
 			if len(nonZeroServers) <= 0 {
 				log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
 			}
@@ -388,7 +241,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 }
 
 var configuration confg.Configuration
-var pool serverPool
+var pool poolutil.ServerPool
 var wg sync.WaitGroup
 var requestFlow tunnel
 var processingRequests sync.WaitGroup
