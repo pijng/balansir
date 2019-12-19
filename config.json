@@ -1,9 +1,9 @@
 {
     "server_list": [
-        {"endpoint": "127.0.0.1:443", "weight": 0.5},
-        {"endpoint": "127.0.0.2:443", "weight": 0.5}
+        {"endpoint": "127.0.0.1:5000", "weight": 0.5},
+        {"endpoint": "127.0.0.1:5001", "weight": 0.5}
     ],
-    "connection_protocol": "https",
+    "connection_protocol": "http",
     "autocert": true,
     "autocert_dir": "./certs",
     "white_hosts": "example.com",
@@ -11,10 +11,12 @@
     "ssl_private_key": "./server.key",
     "http_port": 80,
     "https_port": 443,
-    "server_check_timer": 2,
+    "read_timeout": 10,
+    "write_timeout": 20,
+    "server_check_timer": 1,
     "server_check_response_timeout": 5,
     "session_persistence": false,
     "session_max_age": 300,
     "proxy_mode": "transparent",
-    "balancing_algorithm": "weighted-round-robin"
+    "balancing_algorithm": "weighted-least-connections"
 }

@@ -18,6 +18,8 @@ type Configuration struct {
 	CertDir            string      `json:"autocert_dir"`
 	SessionMaxAge      int         `json:"session_max_age"`
 	Timeout            int         `json:"server_check_response_timeout"`
+	ReadTimeout        int         `json:"read_timeout"`
+	WriteTimeout       int         `json:"write_timeout"`
 	ProxyMode          string      `json:"proxy_mode"`
 	Algorithm          string      `json:"balancing_algorithm"`
 }

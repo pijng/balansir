@@ -210,6 +210,8 @@ func listenAndServeTLSWithAutocert() {
 		TLSConfig: &tls.Config{
 			GetCertificate: certManager.GetCertificate,
 		},
+		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
 	go func() {
@@ -229,8 +231,10 @@ func listenAndServeTLSWithAutocert() {
 func listenAndServeTLSWithSelfSignedCerts() {
 	go func() {
 		server := http.Server{
-			Addr:    ":" + strconv.Itoa(configuration.Port),
-			Handler: http.HandlerFunc(helpers.RedirectTLS),
+			Addr:         ":" + strconv.Itoa(configuration.Port),
+			Handler:      http.HandlerFunc(helpers.RedirectTLS),
+			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 		log.Fatal(server.ListenAndServe())
 	}()
@@ -267,8 +271,10 @@ func main() {
 		}
 	} else {
 		server := http.Server{
-			Addr:    ":" + strconv.Itoa(configuration.Port),
-			Handler: http.HandlerFunc(loadBalance),
+			Addr:         ":" + strconv.Itoa(configuration.Port),
+			Handler:      http.HandlerFunc(loadBalance),
+			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 		log.Fatal(server.ListenAndServe())
 	}
