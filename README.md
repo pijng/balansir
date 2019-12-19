@@ -16,6 +16,7 @@ Layer 7 load balancer with simple configuration
 - [ ] Add benchmark testing
 - [x] Add Letsencrypt integration
 - [ ] Add rate limiting
+- [ ] Add gzip feature
 - [ ] Add cache algorithms
 - [ ] Add dashboard (web UI with Balansir metrics)
 
