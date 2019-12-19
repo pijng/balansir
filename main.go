@@ -201,7 +201,7 @@ func listenAndServeTLSWithAutocert() {
 
 	certManager := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(configuration.WhiteHosts),
+		HostPolicy: autocert.HostWhitelist(configuration.WhiteHosts...),
 		Cache:      autocert.DirCache(configuration.CertDir),
 	}
 
@@ -214,10 +214,12 @@ func listenAndServeTLSWithAutocert() {
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
+	port := configuration.Port
+
 	go func() {
 		http.HandleFunc("/", loadBalance)
 		http.ListenAndServe(
-			":"+strconv.Itoa(configuration.Port),
+			":"+strconv.Itoa(port),
 			certManager.HTTPHandler(nil),
 		)
 	}()
