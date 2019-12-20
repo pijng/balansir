@@ -10,7 +10,7 @@ Layer 7 load balancer with simple configuration
 
 **Documentaion coming at the end of December**
 
-## Roadmap to near future
+## Roadmap to near future (in no particular order)
 - [x] Add config hot reload
 - [x] Check HTTPS stability
 - [ ] Add benchmark testing
@@ -19,6 +19,7 @@ Layer 7 load balancer with simple configuration
 - [ ] Add gzip feature
 - [ ] Add cache algorithms
 - [ ] Add dashboard (web UI with Balansir metrics)
+- [ ] Add intelligible comments to exported functions and types
 
 <!-- ## Configuration table
 
