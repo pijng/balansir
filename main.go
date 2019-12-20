@@ -263,7 +263,7 @@ var wg sync.WaitGroup
 var requestFlow tunnel
 var processingRequests sync.WaitGroup
 var serverPoolHash string
-var visitors ratelimit.Visitors
+var visitors ratelimit.Limiter
 var visitorMtx sync.Mutex
 
 func main() {
@@ -276,6 +276,10 @@ func main() {
 
 	go serversCheck()
 	go configWatch()
+
+	if configuration.RateLimit {
+		go visitors.CleanOldVisitors(&visitorMtx)
+	}
 
 	if configuration.Protocol == "https" {
 
