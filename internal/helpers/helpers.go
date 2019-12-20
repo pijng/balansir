@@ -5,22 +5,35 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"math/rand"
+	"net"
 	"net/http"
-	"strings"
 )
 
-//RemovePortFromHost ...
-func RemovePortFromHost(host string) string {
-	if i := strings.Index(host, ":"); i != -1 {
-		host = host[:i]
+//ReturnPortFromHost ...
+func ReturnPortFromHost(host string) string {
+	_, host, err := net.SplitHostPort(host)
+	if err != nil {
+		log.Println(err)
+		return ""
 	}
 	return host
 }
 
+//ReturnIPFromHost ...
+func ReturnIPFromHost(host string) string {
+	ip, _, err := net.SplitHostPort(host)
+	if err != nil {
+		log.Println(err)
+		return ""
+	}
+	return ip
+}
+
 //RedirectTLS ...
 func RedirectTLS(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://"+RemovePortFromHost(r.Host), http.StatusMovedPermanently)
+	http.Redirect(w, r, "https://"+ReturnPortFromHost(r.Host), http.StatusMovedPermanently)
 }
 
 //RandomStringBytes ...

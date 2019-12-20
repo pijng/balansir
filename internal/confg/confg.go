@@ -14,9 +14,12 @@ type Configuration struct {
 	Delay              int         `json:"server_check_timer"`
 	SessionPersistence bool        `json:"session_persistence"`
 	Autocert           bool        `json:"autocert"`
-	WhiteHosts         string      `json:"white_hosts"`
+	WhiteHosts         []string    `json:"white_hosts"`
 	CertDir            string      `json:"autocert_dir"`
 	SessionMaxAge      int         `json:"session_max_age"`
+	RateLimit          bool        `json:"rate_limit"`
+	RatePerSecond      int         `json:"rate_per_second"`
+	RateBucket         int         `json:"rate_bucket"`
 	Timeout            int         `json:"server_check_response_timeout"`
 	ReadTimeout        int         `json:"read_timeout"`
 	WriteTimeout       int         `json:"write_timeout"`

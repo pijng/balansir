@@ -4,6 +4,7 @@ import (
 	"balansir/internal/confg"
 	"balansir/internal/helpers"
 	"balansir/internal/poolutil"
+	"balansir/internal/ratelimit"
 	"balansir/internal/serverutil"
 	"crypto/md5"
 	"crypto/tls"
@@ -32,6 +33,16 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	requestFlow.mux.Lock()
 	requestFlow.wg.Wait()
 	requestFlow.mux.Unlock()
+
+	if configuration.RateLimit {
+		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
+		limiter := visitors.GetVisitor(ip, &visitorMtx, &configuration)
+		if !limiter.Allow() {
+			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
+			return
+		}
+	}
+
 	if configuration.ProxyMode == "transparent" {
 		r = helpers.AddRemoteAddrToRequest(r)
 	}
@@ -252,6 +263,8 @@ var wg sync.WaitGroup
 var requestFlow tunnel
 var processingRequests sync.WaitGroup
 var serverPoolHash string
+var visitors ratelimit.Visitors
+var visitorMtx sync.Mutex
 
 func main() {
 	file, err := ioutil.ReadFile("config.json")
