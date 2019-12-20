@@ -2,7 +2,6 @@ package ratelimit
 
 import (
 	"balansir/internal/confg"
-	"fmt"
 	"sync"
 	"time"
 
@@ -45,7 +44,6 @@ func (v *Limiter) CleanOldVisitors(mu *sync.Mutex) {
 				delete(*v, ip)
 			}
 		}
-		fmt.Println(*v)
 		mu.Unlock()
 		time.Sleep(time.Minute)
 	}
