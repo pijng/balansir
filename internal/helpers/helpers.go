@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"balansir/internal/confg"
+	"balansir/internal/gziputil"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -72,4 +73,13 @@ func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool
 	}
 	serverPoolHash = &poolHash
 	return true
+}
+
+//ServeDistributor ...
+func ServeDistributor(fn http.HandlerFunc, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
+	if gzipEnabled {
+		gziputil.ServeWithGzip(fn, w, r)
+		return
+	}
+	fn(w, r)
 }

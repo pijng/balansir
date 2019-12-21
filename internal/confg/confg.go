@@ -17,6 +17,7 @@ type Configuration struct {
 	WhiteHosts         []string    `json:"white_hosts"`
 	CertDir            string      `json:"autocert_dir"`
 	SessionMaxAge      int         `json:"session_max_age"`
+	GzipResponse       bool        `json:"gzip_response"`
 	RateLimit          bool        `json:"rate_limit"`
 	RatePerSecond      int         `json:"rate_per_second"`
 	RateBucket         int         `json:"rate_bucket"`

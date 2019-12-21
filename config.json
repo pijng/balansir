@@ -17,9 +17,10 @@
     "server_check_response_timeout": 5,
     "session_persistence": false,
     "session_max_age": 300,
+    "gzip_response": true,
     "rate_limit": true,
-    "rate_per_second": 100,
-    "rate_bucket": 300,
+    "rate_per_second": 300,
+    "rate_bucket": 500,
     "proxy_mode": "transparent",
     "balancing_algorithm": "weighted-least-connections"
 }

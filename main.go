@@ -66,7 +66,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		if configuration.SessionPersistence {
 			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
-		endpoint.Proxy.ServeHTTP(w, r)
+		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
 		processingRequests.Done()
 
 	case "weighted-round-robin":
@@ -79,7 +79,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		if configuration.SessionPersistence {
 			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
-		endpoint.Proxy.ServeHTTP(w, r)
+		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
 		processingRequests.Done()
 
 	case "least-connections":
@@ -89,7 +89,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.ActiveConnections.Add(1)
-		endpoint.Proxy.ServeHTTP(w, r)
+		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
 		endpoint.ActiveConnections.Add(-1)
 		processingRequests.Done()
 
@@ -100,7 +100,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 		}
 		endpoint.ActiveConnections.Add(1)
-		endpoint.Proxy.ServeHTTP(w, r)
+		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
 		endpoint.ActiveConnections.Add(-1)
 		processingRequests.Done()
 	}
