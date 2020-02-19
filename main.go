@@ -29,6 +29,55 @@ type tunnel struct {
 	wg  sync.WaitGroup
 }
 
+func roundRobin(w http.ResponseWriter, r *http.Request) {
+	processingRequests.Add(1)
+	index := pool.NextPool()
+	endpoint := pool.ServerList[index]
+	if configuration.SessionPersistence {
+		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+	}
+	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	processingRequests.Done()
+}
+
+func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
+	processingRequests.Add(1)
+	poolChoice := pool.GetPoolChoice()
+	endpoint, err := poolutil.WeightedChoice(poolChoice)
+	if err != nil {
+		log.Println(err)
+	}
+	if configuration.SessionPersistence {
+		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+	}
+	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	processingRequests.Done()
+}
+
+func leastConnections(w http.ResponseWriter, r *http.Request) {
+	processingRequests.Add(1)
+	endpoint := pool.GetLeastConnectedServer()
+	if configuration.SessionPersistence {
+		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+	}
+	endpoint.ActiveConnections.Add(1)
+	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	endpoint.ActiveConnections.Add(-1)
+	processingRequests.Done()
+}
+
+func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
+	processingRequests.Add(1)
+	endpoint := pool.GetWeightedLeastConnectedServer()
+	if configuration.SessionPersistence {
+		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+	}
+	endpoint.ActiveConnections.Add(1)
+	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	endpoint.ActiveConnections.Add(-1)
+	processingRequests.Done()
+}
+
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	requestFlow.mux.Lock()
 	requestFlow.wg.Wait()
@@ -60,49 +109,16 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	switch configuration.Algorithm {
 	case "round-robin":
-		processingRequests.Add(1)
-		index := pool.NextPool()
-		endpoint := pool.ServerList[index]
-		if configuration.SessionPersistence {
-			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
-		}
-		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
-		processingRequests.Done()
+		roundRobin(w, r)
 
 	case "weighted-round-robin":
-		processingRequests.Add(1)
-		poolChoice := pool.GetPoolChoice()
-		endpoint, err := poolutil.WeightedChoice(poolChoice)
-		if err != nil {
-			log.Println(err)
-		}
-		if configuration.SessionPersistence {
-			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
-		}
-		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
-		processingRequests.Done()
+		weightedRoundRobin(w, r)
 
 	case "least-connections":
-		processingRequests.Add(1)
-		endpoint := pool.GetLeastConnectedServer()
-		if configuration.SessionPersistence {
-			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
-		}
-		endpoint.ActiveConnections.Add(1)
-		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
-		endpoint.ActiveConnections.Add(-1)
-		processingRequests.Done()
+		leastConnections(w, r)
 
 	case "weighted-least-connections":
-		processingRequests.Add(1)
-		endpoint := pool.GetWeightedLeastConnectedServer()
-		if configuration.SessionPersistence {
-			w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
-		}
-		endpoint.ActiveConnections.Add(1)
-		helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
-		endpoint.ActiveConnections.Add(-1)
-		processingRequests.Done()
+		weightedLeastConnections(w, r)
 	}
 }
 

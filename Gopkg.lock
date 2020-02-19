@@ -45,9 +45,20 @@
   revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
   version = "v0.3.2"
 
+[[projects]]
+  branch = "master"
+  digest = "1:a2f668c709f9078828e99cb1768cb02e876cb81030545046a32b54b2ac2a9ea8"
+  name = "golang.org/x/time"
+  packages = ["rate"]
+  pruneopts = "UT"
+  revision = "555d28b269f0569763d25dbe1a237ae74c6bcc82"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["golang.org/x/crypto/acme/autocert"]
+  input-imports = [
+    "golang.org/x/crypto/acme/autocert",
+    "golang.org/x/time/rate",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
