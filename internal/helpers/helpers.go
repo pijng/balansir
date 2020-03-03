@@ -83,3 +83,17 @@ func ServeDistributor(fn http.HandlerFunc, w http.ResponseWriter, r *http.Reques
 	}
 	fn(w, r)
 }
+
+//ProxyErrorHandler ...
+func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	if err != nil {
+		// Suppress `context canceled` error.
+		// It may occur when client cancels the request with fast refresh
+		// or by closing the connection. This error isn't informative at all and it'll
+		// just junk the log around.
+		if err.Error() == "context canceled" {
+		} else {
+			log.Printf(`proxy error: %s`, err.Error())
+		}
+	}
+}

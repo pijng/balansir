@@ -1,8 +1,10 @@
 package cacheutil
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
+	"net/http"
 	"sync"
 )
 
@@ -10,6 +12,7 @@ const (
 	offset64        = 14695981039346656037
 	prime64         = 1099511628211
 	headerEntrySize = 4
+	mbBytes         = 1048576
 )
 
 type fnv64a struct{}
@@ -24,39 +27,43 @@ func (f fnv64a) sum(key string) uint64 {
 	return hash
 }
 
-type cacheCluster struct {
+//CacheCluster ...
+type CacheCluster struct {
 	shards       []*shard
 	hash         fnv64a
 	shardsAmount int
 }
 
-func New(shardsAmount int, maxSize int) *cacheCluster {
-	cache := &cacheCluster{
+//New ...
+func New(shardsAmount int, maxSize int) *CacheCluster {
+	cache := &CacheCluster{
 		shards:       make([]*shard, shardsAmount),
 		shardsAmount: shardsAmount,
 	}
 	for i := 0; i < shardsAmount; i++ {
-		cache.shards[i] = createShard(maxSize)
+		cache.shards[i] = createShard(maxSize * mbBytes)
 	}
 
 	return cache
 }
 
-func (cluster *cacheCluster) getShard(hashedKey uint64) *shard {
+func (cluster *CacheCluster) getShard(hashedKey uint64) *shard {
 	return cluster.shards[hashedKey&uint64(cluster.shardsAmount-1)]
 }
 
-func (cluster *cacheCluster) set(key string, value []byte) {
+//Set ...
+func (cluster *CacheCluster) Set(key string, value []byte) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.set(hashedKey, value)
 }
 
-func (cluster *cacheCluster) get(key string) ([]byte, error) {
+//Get ...
+func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
-	value, _ := shard.get(key, hashedKey)
-	return value, nil
+	value, err := shard.get(key, hashedKey)
+	return value, err
 }
 
 type shard struct {
@@ -112,7 +119,7 @@ func wrapEntry(value []byte) []byte {
 
 func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
 	s.mux.RLock()
-	itemIndex := int(s.items[hashedKey])
+	itemIndex := int(s.hashmap[hashedKey])
 	if itemIndex == 0 {
 		s.mux.RUnlock()
 		return nil, errors.New("key not found")
@@ -121,4 +128,29 @@ func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
 	entry := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+blockSize]
 	s.mux.RUnlock()
 	return readEntry(entry), nil
+}
+
+//ServeFromCache ...
+func ServeFromCache(w http.ResponseWriter, r *http.Request, cacheCluster *CacheCluster, response []byte) {
+	//First we need to split headers from our cached response and assign it to responseWriter
+	slicedResponse := bytes.Split(response, []byte(";--;"))
+	//Iterate over sliced headers
+	for _, val := range slicedResponse {
+		//Split `key`–`value` parts and iterate over 'em
+		slicedHeader := bytes.Split(val, []byte(";-;"))
+		for i := range slicedHeader {
+			//Guard to prevent writing last header value as new header key
+			if i+1 <= len(slicedHeader)-1 {
+				//Write header `key`-`value` to responseWriter
+				w.Header().Set(string(slicedHeader[i]), string(slicedHeader[i+1]))
+			}
+		}
+	}
+	//Create new buffer for our cached response
+	bodyBuf := bytes.NewBuffer([]byte{})
+	//Write body to buffer. It'll always be the last element of our slice
+	bodyBuf.Write(slicedResponse[len(slicedResponse)-1])
+	//Write response buffer to responseWriter and return it to client
+	w.Write(bodyBuf.Bytes())
+	return
 }

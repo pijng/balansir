@@ -1,11 +1,13 @@
 package main
 
 import (
+	"balansir/internal/cacheutil"
 	"balansir/internal/confg"
 	"balansir/internal/helpers"
 	"balansir/internal/poolutil"
 	"balansir/internal/ratelimit"
 	"balansir/internal/serverutil"
+	"bytes"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
@@ -31,6 +33,16 @@ type tunnel struct {
 
 func roundRobin(w http.ResponseWriter, r *http.Request) {
 	processingRequests.Add(1)
+
+	if configuration.Cache {
+		response, err := cacheCluster.Get(r.URL.String())
+		if err == nil {
+			processingRequests.Done()
+			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			return
+		}
+	}
+
 	index := pool.NextPool()
 	endpoint := pool.ServerList[index]
 	if configuration.SessionPersistence {
@@ -42,6 +54,16 @@ func roundRobin(w http.ResponseWriter, r *http.Request) {
 
 func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	processingRequests.Add(1)
+
+	if configuration.Cache {
+		response, err := cacheCluster.Get(r.URL.String())
+		if err == nil {
+			processingRequests.Done()
+			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			return
+		}
+	}
+
 	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
@@ -56,6 +78,16 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 
 func leastConnections(w http.ResponseWriter, r *http.Request) {
 	processingRequests.Add(1)
+
+	if configuration.Cache {
+		response, err := cacheCluster.Get(r.URL.String())
+		if err == nil {
+			processingRequests.Done()
+			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			return
+		}
+	}
+
 	endpoint := pool.GetLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
@@ -68,6 +100,16 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 
 func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	processingRequests.Add(1)
+
+	if configuration.Cache {
+		response, err := cacheCluster.Get(r.URL.String())
+		if err == nil {
+			processingRequests.Done()
+			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			return
+		}
+	}
+
 	endpoint := pool.GetWeightedLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
@@ -138,6 +180,46 @@ func serversCheck() {
 	}
 }
 
+func proxyCacheResponse(r *http.Response) error {
+	//Here we're checking if response' url is not cached.
+	_, err := cacheCluster.Get(r.Request.URL.Path)
+	if err != nil {
+
+		//Create byte buffer for all response' headers and iterate over 'em
+		headerBuf := bytes.NewBuffer([]byte{})
+		for key, val := range r.Header {
+			//Write header's key to buffer
+			headerBuf.Write([]byte(key))
+			//Add delimeter so we can split header key later
+			headerBuf.Write([]byte(";-;"))
+			//Create byte buffer for header value
+			headerValueBuf := bytes.NewBuffer([]byte{})
+			//Header value is a string slice, so iterate over it to correctly write it to a buffer
+			for _, v := range val {
+				headerValueBuf.Write([]byte(v))
+			}
+			//Write complete header value to headers buffer
+			headerBuf.Write(headerValueBuf.Bytes())
+			//Add another delimeter so we can split headers out of each other
+			headerBuf.Write([]byte(";--;"))
+		}
+
+		//Read response body, write it to buffer
+		b, _ := ioutil.ReadAll(r.Body)
+		bodyBuf := bytes.NewBuffer(b)
+		//Reassign response body
+		r.Body = ioutil.NopCloser(bodyBuf)
+		//Create new buffer. Write our headers and body
+		respBuf := bytes.NewBuffer([]byte{})
+		respBuf.Write(headerBuf.Bytes())
+		respBuf.Write(bodyBuf.Bytes())
+
+		//Set complete response to cache
+		cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes())
+	}
+	return nil
+}
+
 func fillConfiguration(file []byte, config *confg.Configuration) {
 	requestFlow.mux.Lock()
 	requestFlow.wg.Add(1)
@@ -172,6 +254,12 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 			}
 
 			proxy := httputil.NewSingleHostReverseProxy(serverURL)
+			proxy.ErrorHandler = helpers.ProxyErrorHandler
+
+			if configuration.Cache {
+				proxy.ModifyResponse = proxyCacheResponse
+			}
+
 			connections := expvar.NewFloat(helpers.RandomStringBytes(5))
 
 			if configuration.SessionPersistence {
@@ -281,6 +369,7 @@ var processingRequests sync.WaitGroup
 var serverPoolHash string
 var visitors ratelimit.Limiter
 var visitorMtx sync.Mutex
+var cacheCluster *cacheutil.CacheCluster
 
 func main() {
 	file, err := ioutil.ReadFile("config.json")
@@ -295,6 +384,11 @@ func main() {
 
 	if configuration.RateLimit {
 		go visitors.CleanOldVisitors(&visitorMtx)
+	}
+
+	if configuration.Cache {
+		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb)
+		log.Print("Cache enabled")
 	}
 
 	if configuration.Protocol == "https" {
