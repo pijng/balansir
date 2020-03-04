@@ -8,7 +8,6 @@ Layer 7 load balancer with simple configuration
 
 **Heavily WIP. Do not use it in production in any case.**
 
-**Documentaion coming at the end of December**
 
 ## Roadmap to near future (in no particular order)
 - [x] Add config hot reload
