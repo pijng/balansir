@@ -17,6 +17,12 @@ const (
 
 type fnv64a struct{}
 
+func exactSize(b []byte) int {
+	a := b
+	a = bytes.Trim(a, "\x00")
+	return len(a)
+}
+
 func (f fnv64a) sum(key string) uint64 {
 	var hash uint64 = offset64
 	for i := 0; i < len(key); i++ {
@@ -52,10 +58,14 @@ func (cluster *CacheCluster) getShard(hashedKey uint64) *shard {
 }
 
 //Set ...
-func (cluster *CacheCluster) Set(key string, value []byte) {
+func (cluster *CacheCluster) Set(key string, value []byte) (err error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
+	if exactSize(shard.items)+len(value) >= shard.maxSize {
+		return errors.New("potential exceeding of shard max capacity")
+	}
 	shard.set(hashedKey, value)
+	return nil
 }
 
 //Get ...
@@ -72,6 +82,7 @@ type shard struct {
 	tail         int
 	mux          sync.RWMutex
 	headerBuffer []byte
+	maxSize      int
 }
 
 func createShard(maxSize int) *shard {
@@ -80,6 +91,7 @@ func createShard(maxSize int) *shard {
 		items:        make([]byte, maxSize),
 		tail:         1,
 		headerBuffer: make([]byte, headerEntrySize),
+		maxSize:      maxSize,
 	}
 }
 
@@ -131,7 +143,7 @@ func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
 }
 
 //ServeFromCache ...
-func ServeFromCache(w http.ResponseWriter, r *http.Request, cacheCluster *CacheCluster, response []byte) {
+func ServeFromCache(w http.ResponseWriter, r *http.Request, response []byte) {
 	//First we need to split headers from our cached response and assign it to responseWriter
 	slicedResponse := bytes.Split(response, []byte(";--;"))
 	//Iterate over sliced headers

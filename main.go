@@ -38,7 +38,7 @@ func roundRobin(w http.ResponseWriter, r *http.Request) {
 		response, err := cacheCluster.Get(r.URL.String())
 		if err == nil {
 			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			cacheutil.ServeFromCache(w, r, response)
 			return
 		}
 	}
@@ -59,7 +59,7 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 		response, err := cacheCluster.Get(r.URL.String())
 		if err == nil {
 			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			cacheutil.ServeFromCache(w, r, response)
 			return
 		}
 	}
@@ -83,7 +83,7 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 		response, err := cacheCluster.Get(r.URL.String())
 		if err == nil {
 			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			cacheutil.ServeFromCache(w, r, response)
 			return
 		}
 	}
@@ -105,7 +105,7 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 		response, err := cacheCluster.Get(r.URL.String())
 		if err == nil {
 			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, cacheCluster, response)
+			cacheutil.ServeFromCache(w, r, response)
 			return
 		}
 	}
@@ -215,6 +215,9 @@ func proxyCacheResponse(r *http.Response) error {
 		respBuf.Write(bodyBuf.Bytes())
 
 		//Set complete response to cache
+		//`Set` returns an error if response couldn't be write to shard, due to
+		//potential exceeding of max capacity.
+		//Consider adding some logger here (why?)
 		cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes())
 	}
 	return nil
