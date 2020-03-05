@@ -2,9 +2,14 @@ package cacheutil
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -18,9 +23,7 @@ const (
 type fnv64a struct{}
 
 func exactSize(b []byte) int {
-	a := b
-	a = bytes.Trim(a, "\x00")
-	return len(a)
+	return len(b) - bytes.Count(b, []byte("\x00"))
 }
 
 func (f fnv64a) sum(key string) uint64 {
@@ -35,16 +38,18 @@ func (f fnv64a) sum(key string) uint64 {
 
 //CacheCluster ...
 type CacheCluster struct {
-	shards       []*shard
-	hash         fnv64a
-	shardsAmount int
+	shards         []*shard
+	hash           fnv64a
+	shardsAmount   int
+	exceedFallback bool
 }
 
 //New ...
-func New(shardsAmount int, maxSize int) *CacheCluster {
+func New(shardsAmount int, maxSize int, exceedFallback bool) *CacheCluster {
 	cache := &CacheCluster{
-		shards:       make([]*shard, shardsAmount),
-		shardsAmount: shardsAmount,
+		shards:         make([]*shard, shardsAmount),
+		shardsAmount:   shardsAmount,
+		exceedFallback: exceedFallback,
 	}
 	for i := 0; i < shardsAmount; i++ {
 		cache.shards[i] = createShard(maxSize * mbBytes)
@@ -61,9 +66,19 @@ func (cluster *CacheCluster) getShard(hashedKey uint64) *shard {
 func (cluster *CacheCluster) Set(key string, value []byte) (err error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
-	if exactSize(shard.items)+len(value) >= shard.maxSize {
+	shard.mux.Lock()
+	if exactSize(shard.items)+len(value)+headerEntrySize >= shard.maxSize {
+		shard.mux.Unlock()
+		if cluster.exceedFallback {
+			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value); err != nil {
+				return err
+			}
+			return nil
+		}
+
 		return errors.New("potential exceeding of shard max capacity")
 	}
+	shard.mux.Unlock()
 	shard.set(hashedKey, value)
 	return nil
 }
@@ -73,6 +88,14 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
 	value, err := shard.get(key, hashedKey)
+	if cluster.exceedFallback {
+		if strings.Contains(string(value), "shard_reference_") {
+			splittedVal := strings.Split(string(value), "shard_reference_")
+			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
+			shard = cluster.shards[index]
+			value, err = shard.get(key, hashedKey)
+		}
+	}
 	return value, err
 }
 
@@ -89,7 +112,7 @@ func createShard(maxSize int) *shard {
 	return &shard{
 		hashmap:      make(map[uint64]uint32, maxSize),
 		items:        make([]byte, maxSize),
-		tail:         1,
+		tail:         0,
 		headerBuffer: make([]byte, headerEntrySize),
 		maxSize:      maxSize,
 	}
@@ -140,6 +163,24 @@ func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
 	entry := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+blockSize]
 	s.mux.RUnlock()
 	return readEntry(entry), nil
+}
+
+func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte) (err error) {
+	for i, shard := range shards {
+		shard.mux.Lock()
+		if exactSize(shard.items)+len(value)+headerEntrySize < shard.maxSize {
+			shard.mux.Unlock()
+			md := md5.Sum(value)
+			valueHash := hex.EncodeToString(md[:16])
+			ref := fmt.Sprintf("shard_reference_%v_val_%v", i, valueHash)
+			shard.set(hasher.sum(ref), value)
+			exactShard.set(hashedKey, []byte(ref))
+
+			return nil
+		}
+		shard.mux.Unlock()
+	}
+	return errors.New("potential exceeding of any shard max capacity")
 }
 
 //ServeFromCache ...

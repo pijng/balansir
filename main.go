@@ -215,7 +215,7 @@ func proxyCacheResponse(r *http.Response) error {
 		respBuf.Write(bodyBuf.Bytes())
 
 		//Set complete response to cache
-		//`Set` returns an error if response couldn't be write to shard, due to
+		//`Set` returns an error if response couldn't be written to shard, due to
 		//potential exceeding of max capacity.
 		//Consider adding some logger here (why?)
 		cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes())
@@ -390,7 +390,7 @@ func main() {
 	}
 
 	if configuration.Cache {
-		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb)
+		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb, configuration.CacheShardExceedFallback)
 		log.Print("Cache enabled")
 	}
 
