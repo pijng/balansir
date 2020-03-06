@@ -22,10 +22,6 @@ const (
 
 type fnv64a struct{}
 
-func exactSize(b []byte) int {
-	return len(b) - bytes.Count(b, []byte("\x00"))
-}
-
 func (f fnv64a) sum(key string) uint64 {
 	var hash uint64 = offset64
 	for i := 0; i < len(key); i++ {
@@ -67,7 +63,7 @@ func (cluster *CacheCluster) Set(key string, value []byte) (err error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
-	if exactSize(shard.items)+len(value)+headerEntrySize >= shard.maxSize {
+	if shard.currentSize+len(value)+headerEntrySize >= shard.maxSize {
 		shard.mux.Unlock()
 		if cluster.exceedFallback {
 			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value); err != nil {
@@ -106,6 +102,7 @@ type shard struct {
 	mux          sync.RWMutex
 	headerBuffer []byte
 	maxSize      int
+	currentSize  int
 }
 
 func createShard(maxSize int) *shard {
@@ -137,6 +134,7 @@ func (s *shard) save(value []byte, len int) {
 	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(len))
 	s.tail += copy(s.items[s.tail:], s.headerBuffer)
 	s.tail += copy(s.items[s.tail:], value[:len])
+	s.currentSize += headerEntrySize + len
 }
 
 func readEntry(value []byte) []byte {
@@ -168,7 +166,7 @@ func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
 func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte) (err error) {
 	for i, shard := range shards {
 		shard.mux.Lock()
-		if exactSize(shard.items)+len(value)+headerEntrySize < shard.maxSize {
+		if shard.currentSize+len(value)+headerEntrySize < shard.maxSize {
 			shard.mux.Unlock()
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])
