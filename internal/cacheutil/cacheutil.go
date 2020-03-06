@@ -83,13 +83,14 @@ func (cluster *CacheCluster) Set(key string, value []byte) (err error) {
 func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
-	value, err := shard.get(key, hashedKey)
+	value, err := shard.get(hashedKey)
 	if cluster.exceedFallback {
 		if strings.Contains(string(value), "shard_reference_") {
+			hashedKey = cluster.hash.sum(string(value))
 			splittedVal := strings.Split(string(value), "shard_reference_")
 			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
 			shard = cluster.shards[index]
-			value, err = shard.get(key, hashedKey)
+			value, err = shard.get(hashedKey)
 		}
 	}
 	return value, err
@@ -150,7 +151,7 @@ func wrapEntry(value []byte) []byte {
 	return blob
 }
 
-func (s *shard) get(key string, hashedKey uint64) ([]byte, error) {
+func (s *shard) get(hashedKey uint64) ([]byte, error) {
 	s.mux.RLock()
 	itemIndex := int(s.hashmap[hashedKey])
 	if itemIndex == 0 {
@@ -173,7 +174,6 @@ func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashe
 			ref := fmt.Sprintf("shard_reference_%v_val_%v", i, valueHash)
 			shard.set(hasher.sum(ref), value)
 			exactShard.set(hashedKey, []byte(ref))
-
 			return nil
 		}
 		shard.mux.Unlock()
