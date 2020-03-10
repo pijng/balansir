@@ -153,13 +153,13 @@ func wrapEntry(value []byte) []byte {
 
 func (s *shard) get(hashedKey uint64) ([]byte, error) {
 	s.mux.RLock()
-	itemIndex := int(s.hashmap[hashedKey])
-	if itemIndex == 0 {
+	itemIndex, ok := s.hashmap[hashedKey]
+	if !ok {
 		s.mux.RUnlock()
 		return nil, errors.New("key not found")
 	}
 	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
-	entry := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+blockSize]
+	entry := s.items[itemIndex+headerEntrySize : int(itemIndex)+headerEntrySize+blockSize]
 	s.mux.RUnlock()
 	return readEntry(entry), nil
 }
