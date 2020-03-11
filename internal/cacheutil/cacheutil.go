@@ -108,8 +108,8 @@ type shard struct {
 
 func createShard(maxSize int) *shard {
 	return &shard{
-		hashmap:      make(map[uint64]uint32, 0),
-		items:        make([]byte, maxSize),
+		hashmap:      make(map[uint64]uint32),
+		items:        make([]byte, 0, maxSize),
 		tail:         0,
 		headerBuffer: make([]byte, headerEntrySize),
 		maxSize:      maxSize,
@@ -133,8 +133,9 @@ func (s *shard) push(value []byte) int {
 
 func (s *shard) save(value []byte, len int) {
 	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(len))
-	s.tail += copy(s.items[s.tail:], s.headerBuffer)
-	s.tail += copy(s.items[s.tail:], value[:len])
+	s.items = append(s.items, s.headerBuffer...)
+	s.items = append(s.items, value...)
+	s.tail += headerEntrySize + len
 	s.currentSize += headerEntrySize + len
 }
 
