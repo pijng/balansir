@@ -108,7 +108,7 @@ type shard struct {
 
 func createShard(maxSize int) *shard {
 	return &shard{
-		hashmap:      make(map[uint64]uint32, maxSize),
+		hashmap:      make(map[uint64]uint32, 0),
 		items:        make([]byte, maxSize),
 		tail:         0,
 		headerBuffer: make([]byte, headerEntrySize),
@@ -117,7 +117,7 @@ func createShard(maxSize int) *shard {
 }
 
 func (s *shard) set(hashedKey uint64, value []byte) {
-	entry := readEntry(value)
+	entry := wrapEntry(value)
 	s.mux.Lock()
 	index := s.push(entry)
 	s.hashmap[hashedKey] = uint32(index)
@@ -160,8 +160,9 @@ func (s *shard) get(hashedKey uint64) ([]byte, error) {
 	}
 	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
 	entry := s.items[itemIndex+headerEntrySize : int(itemIndex)+headerEntrySize+blockSize]
+	value := readEntry(entry)
 	s.mux.RUnlock()
-	return readEntry(entry), nil
+	return value, nil
 }
 
 func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte) (err error) {
