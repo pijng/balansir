@@ -97,3 +97,14 @@ func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 		}
 	}
 }
+
+//Max ...
+func Max(x int, y int) int {
+	if x > 100 {
+		return 100
+	}
+	if x < y {
+		return y
+	}
+	return x
+}

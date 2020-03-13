@@ -1,6 +1,7 @@
 package cacheutil
 
 import (
+	"balansir/internal/helpers"
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
@@ -206,4 +207,10 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, response []byte) {
 	//Write response buffer to responseWriter and return it to client
 	w.Write(bodyBuf.Bytes())
 	return
+}
+
+//GCPercentRatio ...
+func GCPercentRatio(a int, s int) int {
+	val, _ := strconv.Atoi(fmt.Sprintf("%.0f", 30*(100/(float64(a)*float64(s)))))
+	return helpers.Max(val, 1)
 }

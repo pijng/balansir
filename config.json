@@ -1,7 +1,6 @@
 {
     "server_list": [
-        {"endpoint": "127.0.0.1:5000", "weight": 0.5},
-        {"endpoint": "127.0.0.1:5001", "weight": 0.5}
+        {"endpoint": "127.0.0.1:5000", "weight": 0.5}
     ],
     "connection_protocol": "http",
     "autocert": false,
@@ -11,8 +10,8 @@
     "ssl_private_key": "./server.key",
     "http_port": 1447,
     "https_port": 443,
-    "read_timeout": 10,
-    "write_timeout": 30,
+    "read_timeout": 5,
+    "write_timeout": 10,
     "server_check_timer": 1,
     "server_check_response_timeout": 5,
     "session_persistence": false,
@@ -25,6 +24,6 @@
     "balancing_algorithm": "weighted-least-connections",
     "cache": true,
     "cache_shards_amount": 8,
-    "cache_shard_max_size_mb": 64,
+    "cache_shard_max_size_mb": 128,
     "cache_shard_exceed_fallback": false
 }

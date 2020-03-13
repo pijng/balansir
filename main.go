@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -391,6 +392,7 @@ func main() {
 
 	if configuration.Cache {
 		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb, configuration.CacheShardExceedFallback)
+		debug.SetGCPercent(cacheutil.GCPercentRatio(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb))
 		log.Print("Cache enabled")
 	}
 
