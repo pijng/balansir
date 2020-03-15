@@ -122,13 +122,11 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
-	requestFlow.mux.Lock()
 	requestFlow.wg.Wait()
-	requestFlow.mux.Unlock()
 
 	if configuration.RateLimit {
 		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
-		limiter := visitors.GetVisitor(ip, &visitorMtx, &configuration)
+		limiter := visitors.GetVisitor(ip, &visitorMux, &configuration)
 		if !limiter.Allow() {
 			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
 			return
@@ -170,7 +168,7 @@ func serversCheck() {
 	for {
 		select {
 		case <-timer.C:
-			wg.Wait()
+			serverPoolWg.Wait()
 			for _, server := range pool.ServerList {
 				server.CheckAlive(&configuration)
 			}
@@ -225,20 +223,18 @@ func proxyCacheResponse(r *http.Response) error {
 }
 
 func fillConfiguration(file []byte, config *confg.Configuration) {
-	requestFlow.mux.Lock()
 	requestFlow.wg.Add(1)
-	requestFlow.mux.Unlock()
 
 	processingRequests.Wait()
 	config.Mux.Lock()
 
-	wg.Add(1)
+	serverPoolWg.Add(1)
 	json.Unmarshal(file, &config)
-	wg.Done()
+	serverPoolWg.Done()
 
 	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
 		var serverHash string
-		wg.Add(len(configuration.ServerList))
+		serverPoolWg.Add(len(configuration.ServerList))
 
 		pool.ClearPool()
 
@@ -280,7 +276,7 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 				Proxy:             proxy,
 				ServerHash:        serverHash,
 			})
-			wg.Done()
+			serverPoolWg.Done()
 		}
 
 		switch configuration.Algorithm {
@@ -367,12 +363,12 @@ func listenAndServeTLSWithSelfSignedCerts() {
 
 var configuration confg.Configuration
 var pool poolutil.ServerPool
-var wg sync.WaitGroup
+var serverPoolWg sync.WaitGroup
 var requestFlow tunnel
 var processingRequests sync.WaitGroup
 var serverPoolHash string
 var visitors ratelimit.Limiter
-var visitorMtx sync.Mutex
+var visitorMux sync.Mutex
 var cacheCluster *cacheutil.CacheCluster
 
 func main() {
@@ -387,7 +383,7 @@ func main() {
 	go configWatch()
 
 	if configuration.RateLimit {
-		go visitors.CleanOldVisitors(&visitorMtx)
+		go visitors.CleanOldVisitors(&visitorMux)
 	}
 
 	if configuration.Cache {
