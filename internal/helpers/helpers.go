@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strings"
 )
 
 //ReturnPortFromHost ...
@@ -107,4 +108,14 @@ func Max(x int, y int) int {
 		return y
 	}
 	return x
+}
+
+//Contains ...
+func Contains(path string, prefixes []*confg.Rule) bool {
+	for _, rule := range prefixes {
+		if strings.HasPrefix(path, rule.Path) {
+			return true
+		}
+	}
+	return false
 }

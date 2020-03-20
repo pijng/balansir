@@ -1,6 +1,8 @@
 package confg
 
-import "sync"
+import (
+	"sync"
+)
 
 //Configuration ...
 type Configuration struct {
@@ -30,10 +32,17 @@ type Configuration struct {
 	CacheShardsAmount        int         `json:"cache_shards_amount"`
 	CacheShardMaxSizeMb      int         `json:"cache_shard_max_size_mb"`
 	CacheShardExceedFallback bool        `json:"cache_shard_exceed_fallback"`
+	CacheRules               []*Rule     `json:"cache_rules"`
 }
 
 //Endpoint ...
 type Endpoint struct {
 	URL    string  `json:"endpoint"`
 	Weight float64 `json:"weight"`
+}
+
+//Rule ...
+type Rule struct {
+	Path string `json:"path"`
+	Keep string `json:"keep"`
 }

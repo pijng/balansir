@@ -180,44 +180,48 @@ func serversCheck() {
 }
 
 func proxyCacheResponse(r *http.Response) error {
-	//Here we're checking if response' url is not cached.
-	_, err := cacheCluster.Get(r.Request.URL.Path)
-	if err != nil {
+	//Check if URL must be cached
+	if helpers.Contains(r.Request.URL.Path, configuration.CacheRules) {
 
-		//Create byte buffer for all response' headers and iterate over 'em
-		headerBuf := bytes.NewBuffer([]byte{})
-		for key, val := range r.Header {
-			//Write header's key to buffer
-			headerBuf.Write([]byte(key))
-			//Add delimeter so we can split header key later
-			headerBuf.Write([]byte(";-;"))
-			//Create byte buffer for header value
-			headerValueBuf := bytes.NewBuffer([]byte{})
-			//Header value is a string slice, so iterate over it to correctly write it to a buffer
-			for _, v := range val {
-				headerValueBuf.Write([]byte(v))
+		//Here we're checking if response' url is not cached.
+		_, err := cacheCluster.Get(r.Request.URL.Path)
+		if err != nil {
+
+			//Create byte buffer for all response' headers and iterate over 'em
+			headerBuf := bytes.NewBuffer([]byte{})
+			for key, val := range r.Header {
+				//Write header's key to buffer
+				headerBuf.Write([]byte(key))
+				//Add delimeter so we can split header key later
+				headerBuf.Write([]byte(";-;"))
+				//Create byte buffer for header value
+				headerValueBuf := bytes.NewBuffer([]byte{})
+				//Header value is a string slice, so iterate over it to correctly write it to a buffer
+				for _, v := range val {
+					headerValueBuf.Write([]byte(v))
+				}
+				//Write complete header value to headers buffer
+				headerBuf.Write(headerValueBuf.Bytes())
+				//Add another delimeter so we can split headers out of each other
+				headerBuf.Write([]byte(";--;"))
 			}
-			//Write complete header value to headers buffer
-			headerBuf.Write(headerValueBuf.Bytes())
-			//Add another delimeter so we can split headers out of each other
-			headerBuf.Write([]byte(";--;"))
+
+			//Read response body, write it to buffer
+			b, _ := ioutil.ReadAll(r.Body)
+			bodyBuf := bytes.NewBuffer(b)
+			//Reassign response body
+			r.Body = ioutil.NopCloser(bodyBuf)
+			//Create new buffer. Write our headers and body
+			respBuf := bytes.NewBuffer([]byte{})
+			respBuf.Write(headerBuf.Bytes())
+			respBuf.Write(bodyBuf.Bytes())
+
+			//Set complete response to cache
+			//`Set` returns an error if response couldn't be written to shard, due to
+			//potential exceeding of max capacity.
+			//Consider adding some logger here (why?)
+			cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes())
 		}
-
-		//Read response body, write it to buffer
-		b, _ := ioutil.ReadAll(r.Body)
-		bodyBuf := bytes.NewBuffer(b)
-		//Reassign response body
-		r.Body = ioutil.NopCloser(bodyBuf)
-		//Create new buffer. Write our headers and body
-		respBuf := bytes.NewBuffer([]byte{})
-		respBuf.Write(headerBuf.Bytes())
-		respBuf.Write(bodyBuf.Bytes())
-
-		//Set complete response to cache
-		//`Set` returns an error if response couldn't be written to shard, due to
-		//potential exceeding of max capacity.
-		//Consider adding some logger here (why?)
-		cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes())
 	}
 	return nil
 }

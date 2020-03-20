@@ -12,12 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
 	offset64        = 14695981039346656037
 	prime64         = 1099511628211
 	headerEntrySize = 4
+	timeEntrySize   = 4
 	mbBytes         = 1048576
 )
 
@@ -51,6 +53,16 @@ func New(shardsAmount int, maxSize int, exceedFallback bool) *CacheCluster {
 	for i := 0; i < shardsAmount; i++ {
 		cache.shards[i] = createShard(maxSize * mbBytes)
 	}
+
+	go func() {
+		timer := time.NewTicker(1 * time.Second)
+		for {
+			select {
+			case <-timer.C:
+				cache.invalidate(time.Now().Unix())
+			}
+		}
+	}()
 
 	return cache
 }
@@ -97,12 +109,19 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 	return value, err
 }
 
+func (cluster *CacheCluster) invalidate(timestamp int64) {
+	for _, shard := range cluster.shards {
+		shard.clean(timestamp)
+	}
+}
+
 type shard struct {
 	hashmap      map[uint64]uint32
 	items        []byte
 	tail         int
 	mux          sync.RWMutex
 	headerBuffer []byte
+	timeBuffer   []byte
 	maxSize      int
 	currentSize  int
 }
@@ -110,9 +129,10 @@ type shard struct {
 func createShard(maxSize int) *shard {
 	return &shard{
 		hashmap:      make(map[uint64]uint32),
-		items:        make([]byte, 0, maxSize),
+		items:        make([]byte, maxSize),
 		tail:         0,
 		headerBuffer: make([]byte, headerEntrySize),
+		timeBuffer:   make([]byte, timeEntrySize),
 		maxSize:      maxSize,
 	}
 }
@@ -128,16 +148,19 @@ func (s *shard) set(hashedKey uint64, value []byte) {
 func (s *shard) push(value []byte) int {
 	dataLen := len(value)
 	index := s.tail
-	s.save(value, dataLen)
+	s.save(value, dataLen, index)
 	return index
 }
 
-func (s *shard) save(value []byte, len int) {
-	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(len))
-	s.items = append(s.items, s.headerBuffer...)
-	s.items = append(s.items, value...)
-	s.tail += headerEntrySize + len
-	s.currentSize += headerEntrySize + len
+func (s *shard) save(value []byte, length int, index int) {
+	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(length))
+	//test timetestamp
+	// binary.LittleEndian.PutUint32(s.timeBuffer, uint32(time.Now().Add(10*time.Second).Unix()))
+	s.items = append(append(s.items[:index], s.headerBuffer...), s.items[index+headerEntrySize:]...)
+	s.items = append(append(s.items[:index+headerEntrySize], s.timeBuffer...), s.items[index+headerEntrySize+timeEntrySize:]...)
+	s.items = append(append(s.items[:index+headerEntrySize+timeEntrySize], value...), s.items[index+headerEntrySize+timeEntrySize+length:]...)
+	s.tail += headerEntrySize + timeEntrySize + length
+	s.currentSize += headerEntrySize + timeEntrySize + length
 }
 
 func readEntry(value []byte) []byte {
@@ -161,10 +184,30 @@ func (s *shard) get(hashedKey uint64) ([]byte, error) {
 		return nil, errors.New("key not found")
 	}
 	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
-	entry := s.items[itemIndex+headerEntrySize : int(itemIndex)+headerEntrySize+blockSize]
+	entry := s.items[itemIndex+headerEntrySize+timeEntrySize : int(itemIndex)+headerEntrySize+timeEntrySize+blockSize]
 	value := readEntry(entry)
 	s.mux.RUnlock()
 	return value, nil
+}
+
+func (s *shard) clean(timestamp int64) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	if len(s.hashmap) > 0 {
+		for i, itemIndex := range s.hashmap {
+			blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
+			timeValue := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+timeEntrySize]
+			keepTill := binary.LittleEndian.Uint32(timeValue)
+			if uint32(timestamp) > keepTill {
+				delete(s.hashmap, i)
+				for k := 0; k < blockSize+headerEntrySize+timeEntrySize; k++ {
+					s.items[int(itemIndex)+k] = 0
+				}
+				s.tail -= blockSize + headerEntrySize + timeEntrySize
+				s.currentSize -= blockSize + headerEntrySize + timeEntrySize
+			}
+		}
+	}
 }
 
 func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte) (err error) {
