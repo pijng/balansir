@@ -10,7 +10,9 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
 
 //ReturnPortFromHost ...
@@ -111,11 +113,37 @@ func Max(x int, y int) int {
 }
 
 //Contains ...
-func Contains(path string, prefixes []*confg.Rule) bool {
+func Contains(path string, prefixes []*confg.Rule) (ok bool, keep string) {
 	for _, rule := range prefixes {
 		if strings.HasPrefix(path, rule.Path) {
-			return true
+			return true, rule.Keep
 		}
 	}
-	return false
+	return false, ""
+}
+
+//GetDuration ...
+func GetDuration(keep string) time.Duration {
+	splittedKeep := strings.Split(keep, ".")
+	val, err := strconv.Atoi(splittedKeep[0])
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	unit := splittedKeep[1]
+
+	var duration time.Duration
+	switch strings.ToLower(unit) {
+	case "second":
+		duration = time.Duration(time.Duration(val) * time.Second)
+		log.Println(duration)
+	case "minute":
+		duration = time.Duration(time.Duration(val) * time.Minute)
+		log.Println(duration)
+	case "hour":
+		duration = time.Duration(time.Duration(val) * time.Hour)
+		log.Println(duration)
+	}
+
+	return duration
 }

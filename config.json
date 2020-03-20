@@ -27,6 +27,6 @@
     "cache_shard_max_size_mb": 128,
     "cache_shard_exceed_fallback": false,
     "cache_rules": [
-        {"path": "/static/", "keep": "10.Minute"}
+        {"path": "/static/", "keep": "5.Minute"}
     ]
 }
