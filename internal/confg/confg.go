@@ -1,8 +1,6 @@
 package confg
 
-import (
-	"sync"
-)
+import "sync"
 
 //Configuration ...
 type Configuration struct {
