@@ -136,13 +136,10 @@ func GetDuration(keep string) time.Duration {
 	switch strings.ToLower(unit) {
 	case "second":
 		duration = time.Duration(time.Duration(val) * time.Second)
-		log.Println(duration)
 	case "minute":
 		duration = time.Duration(time.Duration(val) * time.Minute)
-		log.Println(duration)
 	case "hour":
 		duration = time.Duration(time.Duration(val) * time.Hour)
-		log.Println(duration)
 	}
 
 	return duration
