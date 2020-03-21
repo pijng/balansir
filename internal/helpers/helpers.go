@@ -113,24 +113,24 @@ func Max(x int, y int) int {
 }
 
 //Contains ...
-func Contains(path string, prefixes []*confg.Rule) (ok bool, keep string) {
+func Contains(path string, prefixes []*confg.Rule) (ok bool, ttl string) {
 	for _, rule := range prefixes {
 		if strings.HasPrefix(path, rule.Path) {
-			return true, rule.Keep
+			return true, rule.TTL
 		}
 	}
 	return false, ""
 }
 
 //GetDuration ...
-func GetDuration(keep string) time.Duration {
-	splittedKeep := strings.Split(keep, ".")
-	val, err := strconv.Atoi(splittedKeep[0])
+func GetDuration(ttl string) time.Duration {
+	splittedTTL := strings.Split(ttl, ".")
+	val, err := strconv.Atoi(splittedTTL[0])
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	unit := splittedKeep[1]
+	unit := splittedTTL[1]
 
 	var duration time.Duration
 	switch strings.ToLower(unit) {

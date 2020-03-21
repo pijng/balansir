@@ -72,14 +72,14 @@ func (cluster *CacheCluster) getShard(hashedKey uint64) *shard {
 }
 
 //Set ...
-func (cluster *CacheCluster) Set(key string, value []byte, keep string) (err error) {
+func (cluster *CacheCluster) Set(key string, value []byte, ttl string) (err error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
 	if shard.currentSize+len(value)+headerEntrySize >= shard.maxSize {
 		shard.mux.Unlock()
 		if cluster.exceedFallback {
-			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value, keep); err != nil {
+			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value, ttl); err != nil {
 				return err
 			}
 			return nil
@@ -88,7 +88,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, keep string) (err err
 		return errors.New("potential exceeding of shard max capacity")
 	}
 	shard.mux.Unlock()
-	shard.set(hashedKey, value, keep)
+	shard.set(hashedKey, value, ttl)
 	return nil
 }
 
@@ -137,18 +137,18 @@ func createShard(maxSize int) *shard {
 	}
 }
 
-func (s *shard) set(hashedKey uint64, value []byte, keep string) {
+func (s *shard) set(hashedKey uint64, value []byte, ttl string) {
 	entry := wrapEntry(value)
 	s.mux.Lock()
-	index := s.push(entry, keep)
+	index := s.push(entry, ttl)
 	s.hashmap[hashedKey] = uint32(index)
 	s.mux.Unlock()
 }
 
-func (s *shard) push(value []byte, keep string) int {
+func (s *shard) push(value []byte, ttl string) int {
 	dataLen := len(value)
 	index := s.tail
-	duration := helpers.GetDuration(keep)
+	duration := helpers.GetDuration(ttl)
 	s.save(value, dataLen, index, duration)
 	return index
 }
@@ -212,7 +212,7 @@ func (s *shard) clean(timestamp int64) {
 	}
 }
 
-func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte, keep string) (err error) {
+func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte, ttl string) (err error) {
 	for i, shard := range shards {
 		shard.mux.Lock()
 		if shard.currentSize+len(value)+headerEntrySize < shard.maxSize {
@@ -220,8 +220,8 @@ func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashe
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])
 			ref := fmt.Sprintf("shard_reference_%v_val_%v", i, valueHash)
-			shard.set(hasher.sum(ref), value, keep)
-			exactShard.set(hashedKey, []byte(ref), keep)
+			shard.set(hasher.sum(ref), value, ttl)
+			exactShard.set(hashedKey, []byte(ref), ttl)
 			return nil
 		}
 		shard.mux.Unlock()

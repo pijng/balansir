@@ -42,5 +42,5 @@ type Endpoint struct {
 //Rule ...
 type Rule struct {
 	Path string `json:"path"`
-	Keep string `json:"keep"`
+	TTL  string `json:"ttl"`
 }
