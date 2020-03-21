@@ -49,7 +49,7 @@ func (server *Server) CheckAlive(configuration *confg.Configuration) {
 		return
 	}
 	connection.Close()
-	if server.GetAlive() == false {
+	if !server.GetAlive() {
 		log.Println("Server is up:", server.URL.Host)
 	}
 	server.SetAlive(true)

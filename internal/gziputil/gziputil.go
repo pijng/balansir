@@ -39,5 +39,4 @@ func ServeWithGzip(fn http.HandlerFunc, w http.ResponseWriter, r *http.Request) 
 
 	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 	fn(gzr, r)
-	return
 }

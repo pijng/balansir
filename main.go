@@ -28,8 +28,7 @@ import (
 )
 
 type tunnel struct {
-	mux sync.RWMutex
-	wg  sync.WaitGroup
+	wg sync.WaitGroup
 }
 
 func roundRobin(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +180,7 @@ func serversCheck() {
 
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
-	if ok, ttl := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok == true {
+	if ok, ttl := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
 
 		//Here we're checking if response' url is not cached.
 		_, err := cacheCluster.Get(r.Request.URL.Path)
@@ -220,20 +219,25 @@ func proxyCacheResponse(r *http.Response) error {
 			//`Set` returns an error if response couldn't be written to shard, due to
 			//potential exceeding of max capacity.
 			//Consider adding some logger here (why?)
-			cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), ttl)
+			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), ttl)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func fillConfiguration(file []byte, config *confg.Configuration) {
+func fillConfiguration(file []byte, config *confg.Configuration) error {
 	requestFlow.wg.Add(1)
 
 	processingRequests.Wait()
 	config.Mux.Lock()
 
 	serverPoolWg.Add(1)
-	json.Unmarshal(file, &config)
+	if err := json.Unmarshal(file, &config); err != nil {
+		return err
+	}
 	serverPoolWg.Done()
 
 	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
@@ -293,6 +297,8 @@ func fillConfiguration(file []byte, config *confg.Configuration) {
 	}
 	config.Mux.Unlock()
 	requestFlow.wg.Done()
+
+	return nil
 }
 
 func configWatch() {
@@ -309,7 +315,10 @@ func configWatch() {
 		fileHashNext = hex.EncodeToString(md[:16])
 		if fileHash != fileHashNext {
 			fileHash = fileHashNext
-			fillConfiguration(file, &configuration)
+			err := fillConfiguration(file, &configuration)
+			if err != nil {
+				log.Fatalf(`Error reading configuration: %s`, err)
+			}
 			log.Println("Configuration file changes applied to Balansir")
 		}
 		time.Sleep(time.Second)
@@ -337,10 +346,13 @@ func listenAndServeTLSWithAutocert() {
 
 	go func() {
 		http.HandleFunc("/", loadBalance)
-		http.ListenAndServe(
+		err := http.ListenAndServe(
 			":"+strconv.Itoa(port),
 			certManager.HTTPHandler(nil),
 		)
+		if err != nil {
+			log.Fatalf(`Error starting listener: %s`, err)
+		}
 	}()
 
 	err := server.ListenAndServeTLS("", "")
@@ -381,7 +393,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fillConfiguration(file, &configuration)
+	if err := fillConfiguration(file, &configuration); err != nil {
+		log.Fatalf(`Error reading configuration: %s`, err)
+	}
 
 	go serversCheck()
 	go configWatch()

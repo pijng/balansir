@@ -73,10 +73,7 @@ func WeightedChoice(choices []EndpointChoice) (*serverutil.Server, error) {
 	randint := rand.Intn(weightShum)
 
 	sort.Slice(choices, func(i, j int) bool {
-		if choices[i].Weight > choices[j].Weight {
-			return true
-		}
-		return false
+		return choices[i].Weight > choices[j].Weight
 	})
 
 	for _, choice := range choices {
@@ -96,10 +93,7 @@ func (pool *ServerPool) GetWeightedLeastConnectedServer() *serverutil.Server {
 	servers := pool.ExcludeZeroWeightServers()
 	serverList := ExcludeUnavailableServers(servers)
 	sort.Slice(serverList, func(i, j int) bool {
-		if (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight) {
-			return true
-		}
-		return false
+		return (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight)
 	})
 
 	return serverList[0]

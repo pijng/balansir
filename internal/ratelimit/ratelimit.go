@@ -40,7 +40,7 @@ func (v *Limiter) CleanOldVisitors(mu *sync.Mutex) {
 		mu.Lock()
 
 		for ip, val := range *v {
-			if time.Now().Sub(val.lastSeen) > 3*time.Minute {
+			if time.Since(val.lastSeen) > 3*time.Minute {
 				delete(*v, ip)
 			}
 		}

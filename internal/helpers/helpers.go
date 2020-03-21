@@ -74,7 +74,7 @@ func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool
 	if prevPoolHash == poolHash {
 		return false
 	}
-	serverPoolHash = &poolHash
+	*serverPoolHash = poolHash
 	return true
 }
 

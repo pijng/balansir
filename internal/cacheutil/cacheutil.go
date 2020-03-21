@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -250,8 +251,10 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, response []byte) {
 	//Write body to buffer. It'll always be the last element of our slice
 	bodyBuf.Write(slicedResponse[len(slicedResponse)-1])
 	//Write response buffer to responseWriter and return it to client
-	w.Write(bodyBuf.Bytes())
-	return
+	_, err := w.Write(bodyBuf.Bytes())
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 //GCPercentRatio ...
