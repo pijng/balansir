@@ -180,7 +180,7 @@ func serversCheck() {
 
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
-	if ok, ttl := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
+	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
 
 		//Here we're checking if response' url is not cached.
 		_, err := cacheCluster.Get(r.Request.URL.Path)
@@ -219,7 +219,7 @@ func proxyCacheResponse(r *http.Response) error {
 			//`Set` returns an error if response couldn't be written to shard, due to
 			//potential exceeding of max capacity.
 			//Consider adding some logger here (why?)
-			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), ttl)
+			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
 			if err != nil {
 				return err
 			}

@@ -123,8 +123,15 @@ func Contains(path string, prefixes []*confg.Rule) (ok bool, ttl string) {
 }
 
 //GetDuration ...
-func GetDuration(ttl string) time.Duration {
-	splittedTTL := strings.Split(ttl, ".")
+func GetDuration(TTL string) time.Duration {
+	if TTL == "" {
+		// If TTL isn't specified then return go's max time as Unix int64 value,
+		// so in this case the stored response won't be evicted from cache at all.
+		// See https://stackoverflow.com/a/25065327
+		return 9223372036854775807
+	}
+
+	splittedTTL := strings.Split(TTL, ".")
 	val, err := strconv.Atoi(splittedTTL[0])
 
 	if err != nil {
