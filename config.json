@@ -25,6 +25,7 @@
     "cache": true,
     "cache_shards_amount": 8,
     "cache_shard_max_size_mb": 128,
+    "cache_algorithm": "LFU",
     "cache_shard_exceed_fallback": false,
     "cache_rules": [
         {"path": "/static/", "ttl": "5.Minute"}

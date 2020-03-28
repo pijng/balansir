@@ -221,7 +221,7 @@ func proxyCacheResponse(r *http.Response) error {
 			//Consider adding some logger here (why?)
 			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
 			if err != nil {
-				return err
+				log.Println(err)
 			}
 		}
 	}
@@ -405,7 +405,7 @@ func main() {
 	}
 
 	if configuration.Cache {
-		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb, configuration.CacheShardExceedFallback)
+		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb, configuration.CacheShardExceedFallback, configuration.CacheAlgorithm)
 		debug.SetGCPercent(cacheutil.GCPercentRatio(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb))
 		log.Print("Cache enabled")
 	}

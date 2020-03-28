@@ -45,14 +45,14 @@ type CacheCluster struct {
 }
 
 //New ...
-func New(shardsAmount int, maxSize int, exceedFallback bool) *CacheCluster {
+func New(shardsAmount int, maxSize int, exceedFallback bool, cacheAlgorithm string) *CacheCluster {
 	cache := &CacheCluster{
 		shards:         make([]*shard, shardsAmount),
 		shardsAmount:   shardsAmount,
 		exceedFallback: exceedFallback,
 	}
 	for i := 0; i < shardsAmount; i++ {
-		cache.shards[i] = createShard(maxSize * mbBytes)
+		cache.shards[i] = createShard(maxSize*mbBytes, cacheAlgorithm)
 	}
 
 	go func() {
@@ -77,8 +77,22 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
+
+	if len(value)+headerEntrySize > shard.maxSize {
+		shard.mux.Unlock()
+		return fmt.Errorf("value size is bigger than shard max size: %v out of %v", len(value)+headerEntrySize, shard.maxSize)
+	}
+
 	if shard.currentSize+len(value)+headerEntrySize >= shard.maxSize {
 		shard.mux.Unlock()
+
+		if shard.policy != nil {
+			if err := shard.evict(len(value) + headerEntrySize); err != nil {
+				return err
+			}
+			return nil
+		}
+
 		if cluster.exceedFallback {
 			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value, TTL); err != nil {
 				return err
@@ -97,15 +111,18 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 	hashedKey := cluster.hash.sum(key)
 	shard := cluster.getShard(hashedKey)
-	value, err := shard.get(hashedKey)
+	value, itemIndex, err := shard.get(hashedKey)
 	if cluster.exceedFallback {
 		if strings.Contains(string(value), "shard_reference_") {
 			hashedKey = cluster.hash.sum(string(value))
 			splittedVal := strings.Split(string(value), "shard_reference_")
 			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
 			shard = cluster.shards[index]
-			value, err = shard.get(hashedKey)
+			value, itemIndex, err = shard.get(hashedKey)
 		}
+	}
+	if err == nil && shard.policy != nil {
+		shard.policy.hit(itemIndex)
 	}
 	return value, err
 }
@@ -114,6 +131,12 @@ func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
 		shard.clean(timestamp)
 	}
+}
+
+type policy interface {
+	evict() (uint32, uint64, error)
+	hit(uint32)
+	push(uint32, uint64)
 }
 
 type shard struct {
@@ -125,10 +148,11 @@ type shard struct {
 	timeBuffer   []byte
 	maxSize      int
 	currentSize  int
+	policy       policy
 }
 
-func createShard(maxSize int) *shard {
-	return &shard{
+func createShard(maxSize int, cacheAlgorithm string) *shard {
+	s := &shard{
 		hashmap:      make(map[uint64]uint32),
 		items:        make([]byte, maxSize),
 		tail:         0,
@@ -136,6 +160,14 @@ func createShard(maxSize int) *shard {
 		timeBuffer:   make([]byte, timeEntrySize),
 		maxSize:      maxSize,
 	}
+
+	switch cacheAlgorithm {
+	case "LFU":
+		s.policy = NewLFUMeta()
+	case "LRU":
+	}
+
+	return s
 }
 
 func (s *shard) set(hashedKey uint64, value []byte, TTL string) {
@@ -143,6 +175,9 @@ func (s *shard) set(hashedKey uint64, value []byte, TTL string) {
 	s.mux.Lock()
 	index := s.push(entry, TTL)
 	s.hashmap[hashedKey] = uint32(index)
+	if s.policy != nil {
+		s.policy.push(uint32(index), hashedKey)
+	}
 	s.mux.Unlock()
 }
 
@@ -179,38 +214,59 @@ func wrapEntry(value []byte) []byte {
 	return blob
 }
 
-func (s *shard) get(hashedKey uint64) ([]byte, error) {
+func (s *shard) get(hashedKey uint64) ([]byte, uint32, error) {
 	s.mux.RLock()
 	itemIndex, ok := s.hashmap[hashedKey]
 	if !ok {
 		s.mux.RUnlock()
-		return nil, errors.New("key not found")
+		return nil, 0, errors.New("key not found")
 	}
 	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
 	entry := s.items[itemIndex+headerEntrySize+timeEntrySize : int(itemIndex)+headerEntrySize+timeEntrySize+blockSize]
 	value := readEntry(entry)
 	s.mux.RUnlock()
-	return value, nil
+	return value, itemIndex, nil
+}
+
+func (s *shard) delete(keyIndex uint64, itemIndex uint32, valueSize int) {
+	delete(s.hashmap, keyIndex)
+	for k := 0; k < valueSize; k++ {
+		s.items[int(itemIndex)+k] = 0
+	}
+	s.tail -= valueSize
+	s.currentSize -= valueSize
 }
 
 func (s *shard) clean(timestamp int64) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	if len(s.hashmap) > 0 {
-		for i, itemIndex := range s.hashmap {
+		for keyIndex, itemIndex := range s.hashmap {
 			blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
 			timeValue := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+timeEntrySize]
 			keepTill := binary.LittleEndian.Uint32(timeValue)
 			if uint32(timestamp) > keepTill {
-				delete(s.hashmap, i)
-				for k := 0; k < blockSize+headerEntrySize+timeEntrySize; k++ {
-					s.items[int(itemIndex)+k] = 0
-				}
-				s.tail -= blockSize + headerEntrySize + timeEntrySize
-				s.currentSize -= blockSize + headerEntrySize + timeEntrySize
+				s.delete(keyIndex, itemIndex, blockSize+headerEntrySize+timeEntrySize)
 			}
 		}
 	}
+}
+
+func (s *shard) evict(valueSize int) error {
+	itemIndex, keyIndex, err := s.policy.evict()
+	if err != nil {
+		return err
+	}
+	s.mux.Lock()
+	s.delete(keyIndex, itemIndex, valueSize)
+
+	if s.currentSize+valueSize >= s.maxSize {
+		s.mux.Unlock()
+		s.evict(valueSize)
+	}
+
+	s.mux.Unlock()
+	return nil
 }
 
 func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte, TTL string) (err error) {
