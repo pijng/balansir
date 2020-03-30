@@ -184,9 +184,14 @@ func (s *shard) save(value []byte, length int, index int, duration time.Duration
 	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(length))
 	binary.LittleEndian.PutUint32(s.timeBuffer, uint32(time.Now().Add(duration).Unix()))
 
-	s.items = append(append(s.items[:index], s.headerBuffer...), s.items[index+headerEntrySize:]...)
-	s.items = append(append(s.items[:index+headerEntrySize], s.timeBuffer...), s.items[index+headerEntrySize+timeEntrySize:]...)
-	s.items = append(append(s.items[:index+headerEntrySize+timeEntrySize], value...), s.items[index+headerEntrySize+timeEntrySize+length:]...)
+	totalLen := headerEntrySize + timeEntrySize + length
+	tmpBuffer := make([]byte, totalLen)
+
+	copy(tmpBuffer[0:], s.headerBuffer)
+	copy(tmpBuffer[headerEntrySize:], s.timeBuffer)
+	copy(tmpBuffer[headerEntrySize+timeEntrySize:], value)
+
+	copy(s.items[index:], tmpBuffer)
 
 	s.tail += headerEntrySize + timeEntrySize + length
 	s.currentSize += headerEntrySize + timeEntrySize + length

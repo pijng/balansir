@@ -20,6 +20,7 @@ const (
 type Meta struct {
 	valueMap        [][]byte
 	hashMap         map[uint32]*[]byte
+	tmpBuffer       []byte
 	valueBuffer     []byte
 	itemIndexBuffer []byte
 	keyIndexBuffer  []byte
@@ -32,6 +33,7 @@ func NewMeta(policyType string) *Meta {
 	return &Meta{
 		valueMap:        make([][]byte, 0),
 		hashMap:         make(map[uint32]*[]byte),
+		tmpBuffer:       make([]byte, valueEntrySize+indexEntrySize+keyEntrySize),
 		valueBuffer:     make([]byte, valueEntrySize),
 		itemIndexBuffer: make([]byte, indexEntrySize),
 		keyIndexBuffer:  make([]byte, keyEntrySize),
@@ -53,10 +55,11 @@ func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
 	binary.LittleEndian.PutUint32(meta.itemIndexBuffer, itemIndex)
 	binary.LittleEndian.PutUint64(meta.keyIndexBuffer, keyIndex)
 
-	tmpBuffer := make([]byte, 0)
-	tmpBuffer = append(meta.valueBuffer, meta.itemIndexBuffer...)
-	tmpBuffer = append(tmpBuffer, meta.keyIndexBuffer...)
-	meta.valueMap = append(meta.valueMap, tmpBuffer)
+	copy(meta.tmpBuffer[0:], meta.valueBuffer)
+	copy(meta.tmpBuffer[valueEntrySize:], meta.itemIndexBuffer)
+	copy(meta.tmpBuffer[valueEntrySize+indexEntrySize:], meta.keyIndexBuffer)
+
+	meta.valueMap = append(meta.valueMap, meta.tmpBuffer)
 
 	meta.hashMap[itemIndex] = &meta.valueMap[len(meta.valueMap)-1]
 	meta.sort()
