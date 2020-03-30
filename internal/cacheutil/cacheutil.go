@@ -122,7 +122,7 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 		}
 	}
 	if err == nil && shard.policy != nil {
-		shard.policy.hit(itemIndex)
+		shard.policy.updateMetaValue(itemIndex)
 	}
 	return value, err
 }
@@ -131,12 +131,6 @@ func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
 		shard.clean(timestamp)
 	}
-}
-
-type policy interface {
-	evict() (uint32, uint64, error)
-	hit(uint32)
-	push(uint32, uint64)
 }
 
 type shard struct {
@@ -148,7 +142,7 @@ type shard struct {
 	timeBuffer   []byte
 	maxSize      int
 	currentSize  int
-	policy       policy
+	policy       *Meta
 }
 
 func createShard(maxSize int, cacheAlgorithm string) *shard {
@@ -161,19 +155,16 @@ func createShard(maxSize int, cacheAlgorithm string) *shard {
 		maxSize:      maxSize,
 	}
 
-	switch cacheAlgorithm {
-	case "LFU":
-		s.policy = NewLFUMeta()
-	case "LRU":
+	if cacheAlgorithm != "" {
+		s.policy = NewMeta(cacheAlgorithm)
 	}
 
 	return s
 }
 
 func (s *shard) set(hashedKey uint64, value []byte, TTL string) {
-	entry := wrapEntry(value)
 	s.mux.Lock()
-	index := s.push(entry, TTL)
+	index := s.push(value, TTL)
 	s.hashmap[hashedKey] = uint32(index)
 	if s.policy != nil {
 		s.policy.push(uint32(index), hashedKey)
@@ -201,19 +192,6 @@ func (s *shard) save(value []byte, length int, index int, duration time.Duration
 	s.currentSize += headerEntrySize + timeEntrySize + length
 }
 
-func readEntry(value []byte) []byte {
-	blob := make([]byte, len(value))
-	copy(blob, value)
-	return blob
-}
-
-func wrapEntry(value []byte) []byte {
-	// here I can put timestamps and stuff for cache invalidation
-	blob := make([]byte, len(value))
-	copy(blob, value)
-	return blob
-}
-
 func (s *shard) get(hashedKey uint64) ([]byte, uint32, error) {
 	s.mux.RLock()
 	itemIndex, ok := s.hashmap[hashedKey]
@@ -222,8 +200,7 @@ func (s *shard) get(hashedKey uint64) ([]byte, uint32, error) {
 		return nil, 0, errors.New("key not found")
 	}
 	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
-	entry := s.items[itemIndex+headerEntrySize+timeEntrySize : int(itemIndex)+headerEntrySize+timeEntrySize+blockSize]
-	value := readEntry(entry)
+	value := s.items[itemIndex+headerEntrySize+timeEntrySize : int(itemIndex)+headerEntrySize+timeEntrySize+blockSize]
 	s.mux.RUnlock()
 	return value, itemIndex, nil
 }
