@@ -4,7 +4,7 @@
     <img src="content/assets/balansir_small.png" alt="Balansir" title="Balansir" />
 </p> -->
 
-Layer 7 load balancer with simple configuration
+Layer 7 load balancer and reverse-proxy with simple configuration
 
 **Heavily WIP. Do not use it in production in any case.**
 
