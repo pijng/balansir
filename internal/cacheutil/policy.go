@@ -13,7 +13,10 @@ const (
 	indexEntrySize = 4
 	keyEntrySize   = 8
 	_LRU           = "LRU"
+	_MRU           = "MRU"
 	_LFU           = "LFU"
+	_MFU           = "MFU"
+	_FiFo          = "FIFO"
 )
 
 //Meta ...
@@ -42,9 +45,18 @@ func NewMeta(policyType string) *Meta {
 }
 
 func (meta *Meta) sort() {
-	sort.SliceStable(meta.valueMap, func(i, j int) bool {
-		return binary.LittleEndian.Uint32(meta.valueMap[i][:valueEntrySize]) < binary.LittleEndian.Uint32(meta.valueMap[j][:valueEntrySize])
-	})
+	switch meta.policyType {
+	case _MRU, _MFU:
+		sort.SliceStable(meta.valueMap, func(i, j int) bool {
+			return binary.LittleEndian.Uint32(meta.valueMap[i][:valueEntrySize]) > binary.LittleEndian.Uint32(meta.valueMap[j][:valueEntrySize])
+		})
+	case _LRU, _LFU:
+		sort.SliceStable(meta.valueMap, func(i, j int) bool {
+			return binary.LittleEndian.Uint32(meta.valueMap[i][:valueEntrySize]) < binary.LittleEndian.Uint32(meta.valueMap[j][:valueEntrySize])
+		})
+	case _FiFo:
+		return
+	}
 }
 
 func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
@@ -70,15 +82,15 @@ func (meta *Meta) updateMetaValue(itemIndex uint32) {
 	defer meta.mux.Unlock()
 
 	valueBuffer := *meta.hashMap[itemIndex]
+	var newValue uint32
 
 	switch meta.policyType {
-	case _LRU:
-		hitValue := binary.LittleEndian.Uint32(valueBuffer[:valueEntrySize])
-		binary.LittleEndian.PutUint32(meta.valueBuffer, hitValue+1)
-	case _LFU:
-		timeValue := time.Now().Unix()
-		binary.LittleEndian.PutUint32(meta.valueBuffer, uint32(timeValue))
+	case _LFU, _MFU:
+		newValue = binary.LittleEndian.Uint32(valueBuffer[:valueEntrySize]) + 1
+	case _LRU, _MRU:
+		newValue = uint32(time.Now().Unix())
 	}
+	binary.LittleEndian.PutUint32(meta.valueBuffer, newValue)
 
 	valueBuffer = append(meta.valueBuffer, valueBuffer[valueEntrySize:]...)
 	*meta.hashMap[itemIndex] = valueBuffer
