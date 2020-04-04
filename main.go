@@ -4,8 +4,10 @@ import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/confg"
 	"balansir/internal/helpers"
+	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/ratelimit"
+	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"bytes"
 	"crypto/md5"
@@ -120,8 +122,25 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	processingRequests.Done()
 }
 
+func newServeMux() *http.ServeMux {
+	sm := http.NewServeMux()
+	sm.HandleFunc("/", loadBalance)
+	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
+
+	statsChannel := make(chan metricsutil.Stats, 1)
+	go startMetricsPolling(statsChannel)
+	mp := &metricsutil.MetricsPasser{MetricsChan: statsChannel}
+	sm.HandleFunc("/balansir/metrics/stats", mp.MetrictStats)
+
+	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
+	return sm
+}
+
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	requestFlow.wg.Wait()
+	rateCounter.RateIncrement()
+	rtStart := time.Now()
+	defer rateCounter.ResponseCount(rtStart)
 
 	if configuration.RateLimit {
 		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
@@ -175,6 +194,12 @@ func serversCheck() {
 			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
 			configuration.Mux.Unlock()
 		}
+	}
+}
+
+func startMetricsPolling(stats chan<- metricsutil.Stats) {
+	for {
+		stats <- metricsutil.GetBalansirStats(rateCounter)
 	}
 }
 
@@ -346,6 +371,13 @@ func listenAndServeTLSWithAutocert() {
 
 	go func() {
 		http.HandleFunc("/", loadBalance)
+		http.HandleFunc("/balansir/metrics", metricsutil.Metrics)
+
+		statsChannel := make(chan metricsutil.Stats, 1)
+		go startMetricsPolling(statsChannel)
+		mp := &metricsutil.MetricsPasser{MetricsChan: statsChannel}
+		http.HandleFunc("/balansir/metrics/stats", mp.MetrictStats)
+
 		err := http.ListenAndServe(
 			":"+strconv.Itoa(port),
 			certManager.HTTPHandler(nil),
@@ -372,7 +404,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 		log.Fatal(server.ListenAndServe())
 	}()
 
-	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, http.HandlerFunc(loadBalance)); err != nil {
+	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
 		log.Fatalf(`Error starting TLS listener: %s`, err)
 	}
 }
@@ -386,6 +418,7 @@ var serverPoolHash string
 var visitors ratelimit.Limiter
 var visitorMux sync.Mutex
 var cacheCluster *cacheutil.CacheCluster
+var rateCounter *rateutil.Rate
 
 func main() {
 	file, err := ioutil.ReadFile("config.json")
@@ -410,6 +443,8 @@ func main() {
 		log.Print("Cache enabled")
 	}
 
+	rateCounter = rateutil.NewRateCounter()
+
 	if configuration.Protocol == "https" {
 
 		if configuration.Autocert {
@@ -420,7 +455,7 @@ func main() {
 	} else {
 		server := http.Server{
 			Addr:         ":" + strconv.Itoa(configuration.Port),
-			Handler:      http.HandlerFunc(loadBalance),
+			Handler:      newServeMux(),
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
