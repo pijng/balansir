@@ -1,23 +1,24 @@
 package rateutil
 
 import (
-	"expvar"
+	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 //Rate ...
 type Rate struct {
-	mux         sync.RWMutex
-	ratemap     []expvar.Int
-	responsemap []expvar.Float
+	Mux         sync.RWMutex
+	ratemap     []int64
+	responsemap []int64
 }
 
 //NewRateCounter ...
 func NewRateCounter() *Rate {
 	rate := &Rate{
-		ratemap:     make([]expvar.Int, 2),
-		responsemap: make([]expvar.Float, 2),
+		ratemap:     make([]int64, 2),
+		responsemap: make([]int64, 2),
 	}
 
 	go func() {
@@ -34,33 +35,31 @@ func NewRateCounter() *Rate {
 }
 
 func (rate *Rate) swapMap() {
-	rate.mux.Lock()
-	defer rate.mux.Unlock()
+	rate.Mux.Lock()
+	defer rate.Mux.Unlock()
 
-	rate.ratemap = append(rate.ratemap[1:], make([]expvar.Int, 1)[0])
-	rate.responsemap = append(rate.responsemap[1:], make([]expvar.Float, 1)[0])
+	rate.ratemap = append(rate.ratemap[1:], make([]int64, 1)[0])
+	rate.responsemap = append(rate.responsemap[1:], make([]int64, 1)[0])
 }
 
 //RateIncrement ...
 func (rate *Rate) RateIncrement() {
-	rate.ratemap[1].Add(1)
+	atomic.AddInt64(&rate.ratemap[1], 1)
 }
 
 //RateValue ...
-func (rate *Rate) RateValue() int64 {
-	return rate.ratemap[0].Value()
+func (rate *Rate) RateValue() float64 {
+	return float64(atomic.LoadInt64(&rate.ratemap[0]))
 }
 
 //ResponseCount ...
 func (rate *Rate) ResponseCount(rt time.Time) {
 	responseTime := time.Since(rt)
-	rate.responsemap[1].Add(float64(responseTime.Milliseconds()))
+	atomic.AddInt64(&rate.responsemap[1], responseTime.Microseconds())
 }
 
 //ResponseValue ...
 func (rate *Rate) ResponseValue() float64 {
-	if rate.responsemap[0].Value() != 0 {
-		return float64(rate.RateValue()) / rate.responsemap[0].Value()
-	}
-	return 0
+	val := float64(atomic.LoadInt64(&rate.responsemap[0])) / math.Max(rate.RateValue(), 1) / 1000
+	return math.Round(val*100) / 100
 }

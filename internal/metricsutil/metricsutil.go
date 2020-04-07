@@ -11,7 +11,7 @@ import (
 
 //Stats ...
 type Stats struct {
-	RequestsPerSecond   int64   `json:"requests_per_second"`
+	RequestsPerSecond   float64 `json:"requests_per_second"`
 	AverageResponseTime float64 `json:"average_response_time"`
 }
 
