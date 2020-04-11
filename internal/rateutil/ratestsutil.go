@@ -60,6 +60,9 @@ func (rate *Rate) ResponseCount(rt time.Time) {
 
 //ResponseValue ...
 func (rate *Rate) ResponseValue() float64 {
-	val := float64(atomic.LoadInt64(&rate.responsemap[0])) / math.Max(rate.RateValue(), 1) / 1000
-	return math.Round(val*100) / 100
+	if rate.RateValue() > 0 {
+		val := float64(atomic.LoadInt64(&rate.responsemap[0])) / rate.RateValue() / 1000
+		return math.Round(val*100) / 100
+	}
+	return 0
 }
