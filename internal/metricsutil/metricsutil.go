@@ -19,6 +19,7 @@ type Stats struct {
 	RequestsPerSecond   float64     `json:"requests_per_second"`
 	AverageResponseTime float64     `json:"average_response_time"`
 	MemoryUsage         int64       `json:"memory_usage"`
+	ErrorsCount         int64       `json:"errors_count"`
 	Port                int         `json:"http_port"`
 	TLSPort             int         `json:"https_port"`
 	Endpoints           []*endpoint `json:"endpoints"`
@@ -58,11 +59,11 @@ func GetBalansirStats(rateCounter *rateutil.Rate, configuration *confg.Configura
 			server.ServerHash,
 		}
 	}
-	getRSSUsage()
 	return Stats{
 		RequestsPerSecond:   rateCounter.RateValue(),
 		AverageResponseTime: rateCounter.ResponseValue(),
 		MemoryUsage:         getRSSUsage(),
+		ErrorsCount:         getErrorsCount(),
 		Port:                configuration.Port,
 		TLSPort:             configuration.TLSPort,
 		Endpoints:           endpoints,
@@ -85,4 +86,8 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 func getRSSUsage() int64 {
 	syscall.Getrusage(syscall.RUSAGE_SELF, &mem)
 	return mem.Maxrss / 1024 / 1024
+}
+
+func getErrorsCount() int64 {
+	return 0
 }
