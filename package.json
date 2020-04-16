@@ -1,0 +1,30 @@
+{
+  "name": "balansir",
+  "version": "1.0.0",
+  "description": "<!-- <p align=\"center\">     <img src=\"content/assets/balansir_small.png\" alt=\"Balansir\" title=\"Balansir\" /> </p> -->",
+  "main": "index.js",
+  "scripts": {
+    "build": "browserify content/assets/js/src/main.js -o content/assets/js/dist/bundle.js -t [ babelify --presets [ @babel/preset-env ] ]"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pijng/balansir.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pijng/balansir/issues"
+  },
+  "homepage": "https://github.com/pijng/balansir#readme",
+  "dependencies": {
+    "effector": "^20.13.4"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.9.0",
+    "@babel/polyfill": "^7.8.7",
+    "@babel/preset-env": "^7.9.5",
+    "babelify": "^10.0.0",
+    "browserify": "^16.5.1"
+  }
+}
