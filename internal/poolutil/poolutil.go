@@ -24,18 +24,19 @@ type EndpointChoice struct {
 }
 
 //GetPoolChoice ...
-func (pool *ServerPool) GetPoolChoice() []EndpointChoice {
+func (pool *ServerPool) GetPoolChoice() ([]EndpointChoice, error) {
 	choice := []EndpointChoice{}
 	serverList := pool.ExcludeZeroWeightServers()
 	serverList = ExcludeUnavailableServers(serverList)
+	if len(serverList) == 0 {
+		return nil, errors.New("all servers are down")
+	}
 	for _, server := range serverList {
-		if server.GetAlive() {
-			weight := int(server.Weight * 100)
-			choice = append(choice, EndpointChoice{Weight: weight, Endpoint: server})
-		}
+		weight := int(server.Weight * 100)
+		choice = append(choice, EndpointChoice{Weight: weight, Endpoint: server})
 	}
 
-	return choice
+	return choice, nil
 }
 
 //ExcludeZeroWeightServers ...
@@ -66,11 +67,11 @@ func ExcludeUnavailableServers(servers []*serverutil.Server) []*serverutil.Serve
 //WeightedChoice ...
 func WeightedChoice(choices []EndpointChoice) (*serverutil.Server, error) {
 	rand.Seed(time.Now().UnixNano())
-	weightShum := 0
+	weightSum := 0
 	for _, choice := range choices {
-		weightShum += choice.Weight
+		weightSum += choice.Weight
 	}
-	randint := rand.Intn(weightShum)
+	randint := rand.Intn(weightSum)
 
 	sort.Slice(choices, func(i, j int) bool {
 		return choices[i].Weight > choices[j].Weight
@@ -137,9 +138,14 @@ func (pool *ServerPool) ClearPool() {
 }
 
 //NextPool ...
-func (pool *ServerPool) NextPool() int {
+func (pool *ServerPool) NextPool() (int, error) {
 	var current int
 	pool.mux.Lock()
+	defer pool.mux.Unlock()
+	serverList := ExcludeUnavailableServers(pool.ServerList)
+	if len(serverList) == 0 {
+		return 0, errors.New("all servers are down")
+	}
 	if (pool.Current + 1) > (len(pool.ServerList) - 1) {
 		pool.Current = 0
 		current = pool.Current
@@ -147,9 +153,8 @@ func (pool *ServerPool) NextPool() int {
 		pool.Current = pool.Current + 1
 		current = pool.Current
 	}
-	pool.mux.Unlock()
 	if !pool.ServerList[current].GetAlive() {
 		return pool.NextPool()
 	}
-	return current
+	return current, nil
 }

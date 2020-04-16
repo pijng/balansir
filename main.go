@@ -45,7 +45,13 @@ func roundRobin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	index := pool.NextPool()
+	index, err := pool.NextPool()
+	if err != nil {
+		processingRequests.Done()
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	endpoint := pool.ServerList[index]
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
@@ -66,10 +72,19 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	poolChoice := pool.GetPoolChoice()
+	poolChoice, err := pool.GetPoolChoice()
+	if err != nil {
+		processingRequests.Done()
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
+		processingRequests.Done()
 		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
@@ -92,6 +107,7 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 
 	endpoint, err := pool.GetLeastConnectedServer()
 	if err != nil {
+		processingRequests.Done()
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -119,6 +135,7 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 
 	endpoint, err := pool.GetWeightedLeastConnectedServer()
 	if err != nil {
+		processingRequests.Done()
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
