@@ -89,24 +89,30 @@ func WeightedChoice(choices []EndpointChoice) (*serverutil.Server, error) {
 }
 
 //GetWeightedLeastConnectedServer ...
-func (pool *ServerPool) GetWeightedLeastConnectedServer() *serverutil.Server {
+func (pool *ServerPool) GetWeightedLeastConnectedServer() (*serverutil.Server, error) {
 	servers := pool.ExcludeZeroWeightServers()
 	serverList := ExcludeUnavailableServers(servers)
+	if len(serverList) == 0 {
+		return nil, errors.New("all servers are down")
+	}
 	sort.Slice(serverList, func(i, j int) bool {
 		return (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight)
 	})
 
-	return serverList[0]
+	return serverList[0], nil
 }
 
 //GetLeastConnectedServer ...
-func (pool *ServerPool) GetLeastConnectedServer() *serverutil.Server {
+func (pool *ServerPool) GetLeastConnectedServer() (*serverutil.Server, error) {
 	serverList := pool.ServerList
 	serverList = ExcludeUnavailableServers(serverList)
+	if len(serverList) == 0 {
+		return nil, errors.New("all servers are down")
+	}
 	sort.Slice(serverList, func(i, j int) bool {
 		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
 	})
-	return serverList[0]
+	return serverList[0], nil
 }
 
 //GetServerByHash ...

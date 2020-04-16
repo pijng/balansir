@@ -90,7 +90,12 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endpoint := pool.GetLeastConnectedServer()
+	endpoint, err := pool.GetLeastConnectedServer()
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
@@ -112,7 +117,12 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endpoint := pool.GetWeightedLeastConnectedServer()
+	endpoint, err := pool.GetWeightedLeastConnectedServer()
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
