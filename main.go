@@ -169,6 +169,13 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	rtStart := time.Now()
 	defer rateCounter.ResponseCount(rtStart)
 
+	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
+	if len(availableServers) == 0 {
+		log.Println("all servers are down")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	if configuration.RateLimit {
 		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
 		limiter := visitors.GetVisitor(ip, &visitorMux, &configuration)
@@ -186,10 +193,12 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		cookieHash, _ := r.Cookie("_balansir_server_hash")
 		if cookieHash != nil {
 			endpoint, err := pool.GetServerByHash(cookieHash.Value)
-			if err == nil {
-				endpoint.Proxy.ServeHTTP(w, r)
+			if err != nil {
+				log.Println(err)
 				return
 			}
+			endpoint.Proxy.ServeHTTP(w, r)
+			return
 		}
 	}
 
