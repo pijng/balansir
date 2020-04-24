@@ -85,7 +85,7 @@ func ServeDistributor(endpoint *serverutil.Server, w http.ResponseWriter, r *htt
 		gziputil.ServeWithGzip(endpoint, w, r)
 		return
 	}
-	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*2)
 	if err != nil {
 		return
 	}

@@ -28,7 +28,7 @@ func (w gzipResponseWriter) WriteHeader(code int) {
 //ServeWithGzip ...
 func ServeWithGzip(endpoint *serverutil.Server, w http.ResponseWriter, r *http.Request) {
 	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+		connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*2)
 		if err != nil {
 			return
 		}
@@ -46,7 +46,7 @@ func ServeWithGzip(endpoint *serverutil.Server, w http.ResponseWriter, r *http.R
 	}()
 
 	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*2)
 	if err != nil {
 		return
 	}
