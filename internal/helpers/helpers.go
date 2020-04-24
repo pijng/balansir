@@ -3,6 +3,7 @@ package helpers
 import (
 	"balansir/internal/confg"
 	"balansir/internal/gziputil"
+	"balansir/internal/serverutil"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -79,12 +80,17 @@ func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool
 }
 
 //ServeDistributor ...
-func ServeDistributor(fn http.HandlerFunc, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
+func ServeDistributor(endpoint *serverutil.Server, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
 	if gzipEnabled {
-		gziputil.ServeWithGzip(fn, w, r)
+		gziputil.ServeWithGzip(endpoint, w, r)
 		return
 	}
-	fn(w, r)
+	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+	if err != nil {
+		return
+	}
+	connection.Close()
+	endpoint.Proxy.ServeHTTP(w, r)
 }
 
 //ProxyErrorHandler ...

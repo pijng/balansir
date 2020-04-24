@@ -45,18 +45,12 @@ func roundRobin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	index, err := pool.NextPool()
-	if err != nil {
-		processingRequests.Done()
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	index := pool.NextPool()
 	endpoint := pool.ServerList[index]
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
 	processingRequests.Done()
 }
 
@@ -72,13 +66,7 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	poolChoice, err := pool.GetPoolChoice()
-	if err != nil {
-		processingRequests.Done()
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
 		processingRequests.Done()
@@ -89,7 +77,7 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
 	processingRequests.Done()
 }
 
@@ -105,18 +93,12 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endpoint, err := pool.GetLeastConnectedServer()
-	if err != nil {
-		processingRequests.Done()
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	endpoint := pool.GetLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
 	processingRequests.Done()
 }
@@ -133,18 +115,12 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endpoint, err := pool.GetWeightedLeastConnectedServer()
-	if err != nil {
-		processingRequests.Done()
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	endpoint := pool.GetWeightedLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint.Proxy.ServeHTTP, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
 	processingRequests.Done()
 }
@@ -294,7 +270,10 @@ func fillConfiguration(file []byte, config *confg.Configuration) error {
 	requestFlow.wg.Add(1)
 
 	processingRequests.Wait()
+	defer requestFlow.wg.Done()
+
 	config.Mux.Lock()
+	defer config.Mux.Unlock()
 
 	serverPoolWg.Add(1)
 	if err := json.Unmarshal(file, &config); err != nil {
@@ -357,8 +336,6 @@ func fillConfiguration(file []byte, config *confg.Configuration) error {
 			}
 		}
 	}
-	config.Mux.Unlock()
-	requestFlow.wg.Done()
 
 	return nil
 }

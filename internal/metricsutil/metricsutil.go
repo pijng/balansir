@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"os"
 	"syscall"
+	"time"
 )
 
 var mem syscall.Rusage
 
 //Stats ...
 type Stats struct {
+	Timestamp           int64       `json:"timestamp"`
 	RequestsPerSecond   float64     `json:"requests_per_second"`
 	AverageResponseTime float64     `json:"average_response_time"`
 	MemoryUsage         int64       `json:"memory_usage"`
@@ -60,6 +62,7 @@ func GetBalansirStats(rateCounter *rateutil.Rate, configuration *confg.Configura
 		}
 	}
 	return Stats{
+		Timestamp:           time.Now().Unix() * 1000,
 		RequestsPerSecond:   rateCounter.RateValue(),
 		AverageResponseTime: rateCounter.ResponseValue(),
 		MemoryUsage:         getRSSUsage(),

@@ -24,19 +24,16 @@ type EndpointChoice struct {
 }
 
 //GetPoolChoice ...
-func (pool *ServerPool) GetPoolChoice() ([]EndpointChoice, error) {
+func (pool *ServerPool) GetPoolChoice() []EndpointChoice {
 	choice := []EndpointChoice{}
 	serverList := pool.ExcludeZeroWeightServers()
 	serverList = ExcludeUnavailableServers(serverList)
-	if len(serverList) == 0 {
-		return nil, errors.New("all servers are down")
-	}
 	for _, server := range serverList {
 		weight := int(server.Weight * 100)
 		choice = append(choice, EndpointChoice{Weight: weight, Endpoint: server})
 	}
 
-	return choice, nil
+	return choice
 }
 
 //ExcludeZeroWeightServers ...
@@ -90,30 +87,24 @@ func WeightedChoice(choices []EndpointChoice) (*serverutil.Server, error) {
 }
 
 //GetWeightedLeastConnectedServer ...
-func (pool *ServerPool) GetWeightedLeastConnectedServer() (*serverutil.Server, error) {
+func (pool *ServerPool) GetWeightedLeastConnectedServer() *serverutil.Server {
 	servers := pool.ExcludeZeroWeightServers()
 	serverList := ExcludeUnavailableServers(servers)
-	if len(serverList) == 0 {
-		return nil, errors.New("all servers are down")
-	}
 	sort.Slice(serverList, func(i, j int) bool {
 		return (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight)
 	})
 
-	return serverList[0], nil
+	return serverList[0]
 }
 
 //GetLeastConnectedServer ...
-func (pool *ServerPool) GetLeastConnectedServer() (*serverutil.Server, error) {
+func (pool *ServerPool) GetLeastConnectedServer() *serverutil.Server {
 	serverList := pool.ServerList
 	serverList = ExcludeUnavailableServers(serverList)
-	if len(serverList) == 0 {
-		return nil, errors.New("all servers are down")
-	}
 	sort.Slice(serverList, func(i, j int) bool {
 		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
 	})
-	return serverList[0], nil
+	return serverList[0]
 }
 
 //GetServerByHash ...
@@ -138,14 +129,10 @@ func (pool *ServerPool) ClearPool() {
 }
 
 //NextPool ...
-func (pool *ServerPool) NextPool() (int, error) {
+func (pool *ServerPool) NextPool() int {
 	var current int
 	pool.mux.Lock()
 	defer pool.mux.Unlock()
-	serverList := ExcludeUnavailableServers(pool.ServerList)
-	if len(serverList) == 0 {
-		return 0, errors.New("all servers are down")
-	}
 	if (pool.Current + 1) > (len(pool.ServerList) - 1) {
 		pool.Current = 0
 		current = pool.Current
@@ -156,5 +143,5 @@ func (pool *ServerPool) NextPool() (int, error) {
 	if !pool.ServerList[current].GetAlive() {
 		return pool.NextPool()
 	}
-	return current, nil
+	return current
 }

@@ -1,11 +1,14 @@
 package gziputil
 
 import (
+	"balansir/internal/serverutil"
 	"compress/gzip"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type gzipResponseWriter struct {
@@ -23,9 +26,14 @@ func (w gzipResponseWriter) WriteHeader(code int) {
 }
 
 //ServeWithGzip ...
-func ServeWithGzip(fn http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
+func ServeWithGzip(endpoint *serverutil.Server, w http.ResponseWriter, r *http.Request) {
 	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		fn(w, r)
+		connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+		if err != nil {
+			return
+		}
+		connection.Close()
+		endpoint.Proxy.ServeHTTP(w, r)
 		return
 	}
 	w.Header().Set("Content-Encoding", "gzip")
@@ -38,5 +46,10 @@ func ServeWithGzip(fn http.HandlerFunc, w http.ResponseWriter, r *http.Request) 
 	}()
 
 	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-	fn(gzr, r)
+	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Millisecond*100)
+	if err != nil {
+		return
+	}
+	connection.Close()
+	endpoint.Proxy.ServeHTTP(gzr, r)
 }
