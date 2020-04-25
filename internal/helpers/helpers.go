@@ -80,12 +80,12 @@ func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool
 }
 
 //ServeDistributor ...
-func ServeDistributor(endpoint *serverutil.Server, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
+func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
 	if gzipEnabled {
-		gziputil.ServeWithGzip(endpoint, w, r)
+		gziputil.ServeWithGzip(endpoint, timeout, w, r)
 		return
 	}
-	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*2)
+	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
 	if err != nil {
 		return
 	}

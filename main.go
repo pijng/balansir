@@ -34,38 +34,15 @@ type tunnel struct {
 }
 
 func roundRobin(w http.ResponseWriter, r *http.Request) {
-	processingRequests.Add(1)
-
-	if configuration.Cache {
-		response, err := cacheCluster.Get(r.URL.String())
-		if err == nil {
-			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, response)
-			return
-		}
-	}
-
 	index := pool.NextPool()
 	endpoint := pool.ServerList[index]
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
-	processingRequests.Done()
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 }
 
 func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
-	processingRequests.Add(1)
-
-	if configuration.Cache {
-		response, err := cacheCluster.Get(r.URL.String())
-		if err == nil {
-			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, response)
-			return
-		}
-	}
-
 	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
@@ -77,52 +54,28 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
-	processingRequests.Done()
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 }
 
 func leastConnections(w http.ResponseWriter, r *http.Request) {
-	processingRequests.Add(1)
-
-	if configuration.Cache {
-		response, err := cacheCluster.Get(r.URL.String())
-		if err == nil {
-			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, response)
-			return
-		}
-	}
-
 	endpoint := pool.GetLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
 	processingRequests.Done()
 }
 
 func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
-	processingRequests.Add(1)
-
-	if configuration.Cache {
-		response, err := cacheCluster.Get(r.URL.String())
-		if err == nil {
-			processingRequests.Done()
-			cacheutil.ServeFromCache(w, r, response)
-			return
-		}
-	}
-
 	endpoint := pool.GetWeightedLeastConnectedServer()
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
-	processingRequests.Done()
 }
 
 func newServeMux() *http.ServeMux {
@@ -145,9 +98,20 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	rtStart := time.Now()
 	defer rateCounter.ResponseCount(rtStart)
 
+	processingRequests.Add(1)
+	defer processingRequests.Done()
+
+	if configuration.Cache {
+		response, err := cacheCluster.Get(r.URL.String())
+		if err == nil {
+			cacheutil.ServeFromCache(w, r, response)
+			return
+		}
+	}
+
 	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
 	if len(availableServers) == 0 {
-		log.Println("all servers are down")
+		// log.Println("all servers are down")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
