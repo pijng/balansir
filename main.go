@@ -17,6 +17,7 @@ import (
 	"expvar"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -268,6 +269,15 @@ func fillConfiguration(file []byte, config *confg.Configuration) error {
 
 			proxy := httputil.NewSingleHostReverseProxy(serverURL)
 			proxy.ErrorHandler = helpers.ProxyErrorHandler
+			proxy.Transport = &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   time.Duration(configuration.WriteTimeout) * time.Second,
+					KeepAlive: time.Duration(configuration.ReadTimeout) * time.Second,
+				}).DialContext,
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 100,
+			}
 
 			if configuration.Cache {
 				proxy.ModifyResponse = proxyCacheResponse

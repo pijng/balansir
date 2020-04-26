@@ -5,10 +5,8 @@ import (
 	"compress/gzip"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type gzipResponseWriter struct {
@@ -28,11 +26,6 @@ func (w gzipResponseWriter) WriteHeader(code int) {
 //ServeWithGzip ...
 func ServeWithGzip(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
 	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
-		if err != nil {
-			return
-		}
-		connection.Close()
 		endpoint.Proxy.ServeHTTP(w, r)
 		return
 	}
@@ -46,10 +39,5 @@ func ServeWithGzip(endpoint *serverutil.Server, timeout int, w http.ResponseWrit
 	}()
 
 	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
-	if err != nil {
-		return
-	}
-	connection.Close()
 	endpoint.Proxy.ServeHTTP(gzr, r)
 }
