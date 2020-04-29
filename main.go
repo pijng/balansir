@@ -95,9 +95,6 @@ func newServeMux() *http.ServeMux {
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	requestFlow.wg.Wait()
-	rateCounter.RateIncrement()
-	rtStart := time.Now()
-	defer rateCounter.ResponseCount(rtStart)
 
 	processingRequests.Add(1)
 	defer processingRequests.Done()
@@ -110,6 +107,15 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if configuration.RateLimit {
+		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
+		limiter := visitors.GetVisitor(ip, &configuration)
+		if !limiter.Allow() {
+			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
+			return
+		}
+	}
+
 	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
 	if len(availableServers) == 0 {
 		// log.Println("all servers are down")
@@ -117,16 +123,11 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if configuration.RateLimit {
-		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
-		limiter := visitors.GetVisitor(ip, &visitorMux, &configuration)
-		if !limiter.Allow() {
-			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
-			return
-		}
-	}
+	rateCounter.RateIncrement()
+	rtStart := time.Now()
+	defer rateCounter.ResponseCount(rtStart)
 
-	if configuration.ProxyMode == "transparent" {
+	if configuration.TransparentProxyMode {
 		r = helpers.AddRemoteAddrToRequest(r)
 	}
 
@@ -403,8 +404,7 @@ var serverPoolWg sync.WaitGroup
 var requestFlow tunnel
 var processingRequests sync.WaitGroup
 var serverPoolHash string
-var visitors ratelimit.Limiter
-var visitorMux sync.Mutex
+var visitors *ratelimit.Limiter
 var cacheCluster *cacheutil.CacheCluster
 var rateCounter *rateutil.Rate
 
@@ -421,8 +421,10 @@ func main() {
 	go serversCheck()
 	go configWatch()
 
+	visitors = ratelimit.NewLimiter()
+
 	if configuration.RateLimit {
-		go visitors.CleanOldVisitors(&visitorMux)
+		go visitors.CleanOldVisitors()
 	}
 
 	if configuration.Cache {

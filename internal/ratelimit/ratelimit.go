@@ -14,20 +14,31 @@ type visitor struct {
 }
 
 //Limiter ...
-type Limiter map[string]*visitor
+type Limiter struct {
+	mux  sync.Mutex
+	list map[string]*visitor
+}
+
+//NewLimiter ...
+func NewLimiter() *Limiter {
+	limiter := &Limiter{
+		list: make(map[string]*visitor),
+	}
+	return limiter
+}
 
 //GetVisitor ...
-func (v *Limiter) GetVisitor(ip string, mu *sync.Mutex, configuration *confg.Configuration) *rate.Limiter {
-	mu.Lock()
-	defer mu.Unlock()
+func (v *Limiter) GetVisitor(ip string, configuration *confg.Configuration) *rate.Limiter {
+	v.mux.Lock()
+	defer v.mux.Unlock()
 
-	if (*v) == nil {
-		(*v) = make(Limiter)
-	}
-	limiter, exists := (*v)[ip]
+	limiter, exists := v.list[ip]
 	if !exists {
 		limiter := rate.NewLimiter(rate.Limit(configuration.RatePerSecond), configuration.RateBucket)
-		(*v)[ip] = &visitor{limiter, time.Now()}
+		v.list[ip] = &visitor{
+			limiter:  limiter,
+			lastSeen: time.Now(),
+		}
 		return limiter
 	}
 	limiter.lastSeen = time.Now()
@@ -35,16 +46,16 @@ func (v *Limiter) GetVisitor(ip string, mu *sync.Mutex, configuration *confg.Con
 }
 
 //CleanOldVisitors ...
-func (v *Limiter) CleanOldVisitors(mu *sync.Mutex) {
+func (v *Limiter) CleanOldVisitors() {
 	for {
-		mu.Lock()
+		v.mux.Lock()
 
-		for ip, val := range *v {
-			if time.Since(val.lastSeen) > 3*time.Minute {
-				delete(*v, ip)
+		for ip, val := range v.list {
+			if time.Since(val.lastSeen) > 1*time.Second {
+				delete(v.list, ip)
 			}
 		}
-		mu.Unlock()
+		v.mux.Unlock()
 		time.Sleep(time.Minute)
 	}
 }

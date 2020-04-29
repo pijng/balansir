@@ -17,17 +17,17 @@ var mem syscall.Rusage
 
 //Stats ...
 type Stats struct {
-	Timestamp           int64       `json:"timestamp"`
-	RequestsPerSecond   float64     `json:"requests_per_second"`
-	AverageResponseTime float64     `json:"average_response_time"`
-	MemoryUsage         int64       `json:"memory_usage"`
-	ErrorsCount         int64       `json:"errors_count"`
-	Port                int         `json:"http_port"`
-	TLSPort             int         `json:"https_port"`
-	Endpoints           []*endpoint `json:"endpoints"`
-	ProxyMode           string      `json:"proxy_mode"`
-	Algorithm           string      `json:"balancing_algorithm"`
-	Cache               bool        `json:"cache"`
+	Timestamp            int64       `json:"timestamp"`
+	RequestsPerSecond    float64     `json:"requests_per_second"`
+	AverageResponseTime  float64     `json:"average_response_time"`
+	MemoryUsage          int64       `json:"memory_usage"`
+	ErrorsCount          int64       `json:"errors_count"`
+	Port                 int         `json:"http_port"`
+	TLSPort              int         `json:"https_port"`
+	Endpoints            []*endpoint `json:"endpoints"`
+	TransparentProxyMode bool        `json:"transparent_proxy_mode"`
+	Algorithm            string      `json:"balancing_algorithm"`
+	Cache                bool        `json:"cache"`
 }
 
 type endpoint struct {
@@ -62,17 +62,17 @@ func GetBalansirStats(rateCounter *rateutil.Rate, configuration *confg.Configura
 		}
 	}
 	return Stats{
-		Timestamp:           time.Now().Unix() * 1000,
-		RequestsPerSecond:   rateCounter.RateValue(),
-		AverageResponseTime: rateCounter.ResponseValue(),
-		MemoryUsage:         getRSSUsage(),
-		ErrorsCount:         getErrorsCount(),
-		Port:                configuration.Port,
-		TLSPort:             configuration.TLSPort,
-		Endpoints:           endpoints,
-		ProxyMode:           configuration.ProxyMode,
-		Algorithm:           configuration.Algorithm,
-		Cache:               configuration.Cache,
+		Timestamp:            time.Now().Unix() * 1000,
+		RequestsPerSecond:    rateCounter.RateValue(),
+		AverageResponseTime:  rateCounter.ResponseValue(),
+		MemoryUsage:          getRSSUsage(),
+		ErrorsCount:          getErrorsCount(),
+		Port:                 configuration.Port,
+		TLSPort:              configuration.TLSPort,
+		Endpoints:            endpoints,
+		TransparentProxyMode: configuration.TransparentProxyMode,
+		Algorithm:            configuration.Algorithm,
+		Cache:                configuration.Cache,
 	}
 }
 

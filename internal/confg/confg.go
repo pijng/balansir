@@ -24,7 +24,7 @@ type Configuration struct {
 	Timeout                  int         `json:"server_check_response_timeout"`
 	ReadTimeout              int         `json:"read_timeout"`
 	WriteTimeout             int         `json:"write_timeout"`
-	ProxyMode                string      `json:"proxy_mode"`
+	TransparentProxyMode     bool        `json:"transparent_proxy_mode"`
 	Algorithm                string      `json:"balancing_algorithm"`
 	Cache                    bool        `json:"cache"`
 	CacheShardsAmount        int         `json:"cache_shards_amount"`
