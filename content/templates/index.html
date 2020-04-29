@@ -3,16 +3,131 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <link rel="stylesheet" href="/content/assets/css/style.css">
+  <title>Balansir Metrics</title>
 </head>
 <body>
-  <div>
-    <!-- <canvas id="chart"></canvas> -->
-  </div>
+  <div class="calendar-close"></div>
+  <section class="layout">
+    <!-- Navigation block -->
+    <div class="navigation">
+      <div class="brand">
+        <img src="/content/assets/img/balansir.png" />
+      </div>
+      <div class="menu">
+        <div class="item active">
+          <span>Metrics</span>
+        </div>
+        <div class="item">
+          <span>Servers</span>
+        </div>
+        <div class="item">
+          <span>Cache</span>
+        </div>
+        <div class="item">
+          <span>Configuration</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats View -->
+    <div class="stats-view">
+
+      <div class="chart-inline-block">
+        <div class="chart-wrapper chart-small chart_rpm">
+          <div class="chart-label">
+            <p>0</p>
+            <span>RPM</span>
+          </div>
+          <div class="chart-wrapper_area">
+            <canvas id="chartRPM"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-wrapper chart-small chart_rss">
+          <div class="chart-label">
+            <p>0</p>
+            <span>MEMORY</span>
+          </div>
+          <div class="chart-wrapper_area">
+            <canvas id="chartRSS"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-wrapper chart-small chart_err">
+          <div class="chart-label">
+            <p>0</p>
+            <span>ERRORS</span>
+          </div>
+          <div class="chart-wrapper_area">
+            <canvas id="chartERR"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrapper chart-large">
+        <div class="chart-wrapper chart_avgrt">
+          <div class="date-filter">
+            <div class="segmented-control">
+              <input type="radio" id="1m" name="range" checked><label class="available" for="1m">1 m</label>
+              <input type="radio" id="5m" name="range"><label class="available" for="5m">5 m</label>
+              <input type="radio" id="30m" name="range"><label class="available" for="30m">30 m</label>
+              <input type="radio" id="3h" name="range"><label class="available" for="3h">3 h</label>
+              <input type="radio" id="24h" name="range"><label class="available" for="24h">24 h</label>
+            </div>
+
+            <div class="date-picker">
+              <div class="filter">
+                <div class="filter-date from"></div>
+                <div class="filter-label">Filter date</div>
+                <div class="filter-date to"></div>
+              </div>
+              <div data-range="from" class="calendar">
+                <div class="dates">
+                  <div data-range="from" class="date-box from active">From</div>
+                  <div data-range="to" class="date-box to">To</div>
+                </div>
+                <div id="calendar-body" class="calendar-body">
+                  <div class="months">
+                    <!--  -->
+                  </div>
+                </div>
+                <div class="time">
+                  <input class="hour" type="number" placeholder="00" maxlength="2" oninput="this.value=this.value.slice(0,this.maxLength)"  />
+                  <input class="minute" type="number" placeholder="00" maxlength="2" oninput="this.value=this.value.slice(0,this.maxLength)"  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="label-wrapper">
+            <div class="chart-label value_avg">
+              <p>0 ms</p>
+              <span>AVG Response Time</span>
+            </div>
+            <div class="chart-label value_99_percentile">
+              <p>0 ms</p>
+              <span>99th percentile</span>
+            </div>
+            <div class="chart-label value_90_percentile">
+              <p>0 ms</p>
+              <span>90th percentile</span>
+            </div>
+          </div>
+          <div class="chart-wrapper_area">
+            <canvas id="chartAVGRT"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
 </body>
 
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.js"></script>
-<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-<script src="/content/assets/js/chart.js"></script> -->
+<script src="/content/assets/js/libs/jquery-3.3.1.min.js"></script>
+<script src="/content/assets/js/libs/moment.js"></script>
+<script src="/content/assets/js/libs/chart.2.7.2.js"></script>
+<script src="/content/assets/js/dist/bundle.js"></script>
+
 
 </html>

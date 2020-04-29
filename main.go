@@ -176,6 +176,7 @@ func serversCheck() {
 }
 
 func startMetricsPolling(stats chan<- metricsutil.Stats) {
+	stats <- metricsutil.Stats{}
 	for {
 		availableEndpoints := poolutil.ExcludeUnavailableServers(pool.ServerList)
 		stats <- metricsutil.GetBalansirStats(rateCounter, &configuration, availableEndpoints)

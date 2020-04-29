@@ -15,7 +15,7 @@ type visitor struct {
 
 //Limiter ...
 type Limiter struct {
-	mux  sync.Mutex
+	mux  sync.RWMutex
 	list map[string]*visitor
 }
 
