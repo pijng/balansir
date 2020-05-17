@@ -1,5 +1,6 @@
 import { updateCalendar } from './calendar';
 import { switchTimeRange} from './stores'
+import { Chart } from 'chart.js'
 
 export const createChart = (chart, color, label, pointRadius, borderWidth, ticks, chartPadding) => {
   var ctx = chart
