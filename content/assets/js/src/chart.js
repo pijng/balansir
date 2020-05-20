@@ -1,5 +1,4 @@
 import { updateCalendar } from './calendar';
-import { switchTimeRange} from './stores'
 import { Chart } from 'chart.js'
 
 export const createChart = (chart, color, label, pointRadius, borderWidth, ticks, chartPadding) => {
@@ -131,12 +130,22 @@ const updateAVGRTLabels = (chart) => {
 }
 
 const dateLimit = (newDate, lastDate) => {
-  return Math.round((newDate-lastDate)/1000) > window.segmented_minutes*60
+  return Math.round((newDate-lastDate)/1000) >= window.segmented_minutes*60
 }
 
-const addData = (chart, data, date) => {
+const addData = (chart, data, date, cnst=false) => {
   let label = date
   chart.data.datasets.forEach((dataset) => {
+    if (cnst) {
+      chart.data.labels.push(label);
+      dataset.data.push(data)
+      if (dataset.data.length > 60) {
+        dataset.data.shift()
+        chart.data.labels.shift()
+      }
+      return
+    }
+
     if (!window.custom_date_ranges) {
       if (dateLimit(date, chart.data.labels[0])) {
         if (chart.canvas.id === 'chartAVGRT') {
@@ -184,15 +193,15 @@ export function updateCharts(charts, stats) {
         updateAVGRTLabels(chart)
         break
       case "chartRPM":
-        addData(chart, stats.requests_per_second, date)
+        addData(chart, stats.requests_per_second, date, true)
         updateLabel(chart, document.querySelector(".chart_rpm p"), "")
         break
       case "chartRSS":
-        addData(chart, stats.memory_usage, date)
+        addData(chart, stats.memory_usage, date, true)
         document.querySelector(".chart_rss p").innerText = `${stats.memory_usage} ${stats.memory_usage > 1000 ? "GB":"MB"}`
         break
       case "chartERR":
-        addData(chart, stats.errors_count, date)
+        addData(chart, stats.errors_count, date, true)
         let acc = chart.data.datasets[0].data.reduce((acc, current) => acc + current)
         document.querySelector(".chart_err p").innerText = `${acc}`
         break
