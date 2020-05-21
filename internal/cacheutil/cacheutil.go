@@ -2,10 +2,10 @@ package cacheutil
 
 import (
 	"balansir/internal/helpers"
-	"bytes"
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -269,27 +269,15 @@ func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashe
 }
 
 //ServeFromCache ...
-func ServeFromCache(w http.ResponseWriter, r *http.Request, response []byte) {
-	//First we need to split headers from our cached response and assign it to responseWriter
-	slicedResponse := bytes.Split(response, []byte(";--;"))
-	//Iterate over sliced headers
-	for _, val := range slicedResponse {
-		//Split `key`–`value` parts and iterate over 'em
-		slicedHeader := bytes.Split(val, []byte(";-;"))
-		for i := range slicedHeader {
-			//Guard to prevent writing last header value as new header key
-			if i+1 <= len(slicedHeader)-1 {
-				//Write header `key`-`value` to responseWriter
-				w.Header().Set(string(slicedHeader[i]), string(slicedHeader[i+1]))
-			}
-		}
+func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
+	var response Response
+	json.Unmarshal(value, &response)
+
+	for _, header := range response.Headers {
+		w.Header().Set(header.Key, strings.Join(header.Value, " "))
 	}
-	//Create new buffer for our cached response
-	bodyBuf := bytes.NewBuffer([]byte{})
-	//Write body to buffer. It'll always be the last element of our slice
-	bodyBuf.Write(slicedResponse[len(slicedResponse)-1])
-	//Write response buffer to responseWriter and return it to client
-	_, err := w.Write(bodyBuf.Bytes())
+
+	_, err := w.Write(response.Body)
 	if err != nil {
 		log.Println(err)
 	}
