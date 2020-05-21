@@ -9,7 +9,7 @@ import (
 
 //Rate ...
 type Rate struct {
-	Mux         sync.RWMutex
+	mux         sync.RWMutex
 	ratemap     []int64
 	responsemap []int64
 }
@@ -35,11 +35,12 @@ func NewRateCounter() *Rate {
 }
 
 func (rate *Rate) swapMap() {
-	rate.Mux.Lock()
-	defer rate.Mux.Unlock()
+	// ugly
+	atomic.StoreInt64(&rate.ratemap[0], atomic.LoadInt64(&rate.ratemap[1]))
+	atomic.StoreInt64(&rate.ratemap[1], 0)
 
-	rate.ratemap = append(rate.ratemap[1:], make([]int64, 1)[0])
-	rate.responsemap = append(rate.responsemap[1:], make([]int64, 1)[0])
+	atomic.StoreInt64(&rate.responsemap[0], atomic.LoadInt64(&rate.responsemap[1]))
+	atomic.StoreInt64(&rate.responsemap[1], 0)
 }
 
 //RateIncrement ...
