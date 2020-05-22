@@ -80,7 +80,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 
 	if len(value)+headerEntrySize > shard.maxSize {
 		shard.mux.Unlock()
-		return fmt.Errorf("value size is bigger than shard max size: %v out of %v", len(value)+headerEntrySize, shard.maxSize)
+		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value)+headerEntrySize)/1024/1024), shard.maxSize/1024/1024)
 	}
 
 	if shard.currentSize+len(value)+headerEntrySize >= shard.maxSize {

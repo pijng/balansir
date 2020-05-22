@@ -35,12 +35,13 @@ func NewRateCounter() *Rate {
 }
 
 func (rate *Rate) swapMap() {
-	// ugly
-	atomic.StoreInt64(&rate.ratemap[0], atomic.LoadInt64(&rate.ratemap[1]))
-	atomic.StoreInt64(&rate.ratemap[1], 0)
-
-	atomic.StoreInt64(&rate.responsemap[0], atomic.LoadInt64(&rate.responsemap[1]))
-	atomic.StoreInt64(&rate.responsemap[1], 0)
+	// The last second's stats are accumulated within second index of the corresponding map,
+	// so that we must "swap" value indexes when the current second ends, to make it available
+	// for the dashboard, because value at the first index is returned to the `metricsutil.Stats`
+	for _, accumulator := range [][]int64{rate.ratemap, rate.responsemap} {
+		atomic.StoreInt64(&accumulator[0], atomic.LoadInt64(&accumulator[1]))
+		atomic.StoreInt64(&accumulator[1], 0)
+	}
 }
 
 //RateIncrement ...

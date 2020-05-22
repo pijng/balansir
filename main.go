@@ -191,15 +191,13 @@ func proxyCacheResponse(r *http.Response) error {
 		_, err := cacheCluster.Get(r.Request.URL.Path)
 		if err != nil {
 
-			var response cacheutil.Response
 			var headers []cacheutil.Header
 			var body cacheutil.Body
 
 			for key, val := range r.Header {
-				header := cacheutil.Header{}
-				header.Key = key
-				for _, v := range val {
-					header.Value = append(header.Value, v)
+				header := cacheutil.Header{
+					Key:   key,
+					Value: val,
 				}
 				headers = append(headers, header)
 			}
@@ -207,8 +205,10 @@ func proxyCacheResponse(r *http.Response) error {
 			b, _ := ioutil.ReadAll(r.Body)
 			body = b
 
-			response.Headers = headers
-			response.Body = body
+			response := cacheutil.Response{
+				Headers: headers,
+				Body:    body,
+			}
 			resp, err := json.Marshal(response)
 			if err != nil {
 				return err
