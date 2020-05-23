@@ -2,9 +2,6 @@ package cacheutil
 
 import (
 	"balansir/internal/helpers"
-	"crypto/md5"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -38,7 +34,7 @@ func (f fnv64a) sum(key string) uint64 {
 
 //CacheCluster ...
 type CacheCluster struct {
-	shards         []*shard
+	shards         []*Shard
 	hash           fnv64a
 	shardsAmount   int
 	exceedFallback bool
@@ -47,12 +43,12 @@ type CacheCluster struct {
 //New ...
 func New(shardsAmount int, maxSize int, exceedFallback bool, cacheAlgorithm string) *CacheCluster {
 	cache := &CacheCluster{
-		shards:         make([]*shard, shardsAmount),
+		shards:         make([]*Shard, shardsAmount),
 		shardsAmount:   shardsAmount,
 		exceedFallback: exceedFallback,
 	}
 	for i := 0; i < shardsAmount; i++ {
-		cache.shards[i] = createShard(maxSize*mbBytes, cacheAlgorithm)
+		cache.shards[i] = CreateShard(maxSize*mbBytes, cacheAlgorithm)
 	}
 
 	go func() {
@@ -68,7 +64,7 @@ func New(shardsAmount int, maxSize int, exceedFallback bool, cacheAlgorithm stri
 	return cache
 }
 
-func (cluster *CacheCluster) getShard(hashedKey uint64) *shard {
+func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
 	return cluster.shards[hashedKey&uint64(cluster.shardsAmount-1)]
 }
 
@@ -131,141 +127,6 @@ func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
 		shard.clean(timestamp)
 	}
-}
-
-type shard struct {
-	hashmap      map[uint64]uint32
-	items        []byte
-	tail         int
-	mux          sync.RWMutex
-	headerBuffer []byte
-	timeBuffer   []byte
-	maxSize      int
-	currentSize  int
-	policy       *Meta
-}
-
-func createShard(maxSize int, cacheAlgorithm string) *shard {
-	s := &shard{
-		hashmap:      make(map[uint64]uint32),
-		items:        make([]byte, maxSize),
-		tail:         0,
-		headerBuffer: make([]byte, headerEntrySize),
-		timeBuffer:   make([]byte, timeEntrySize),
-		maxSize:      maxSize,
-	}
-
-	if cacheAlgorithm != "" {
-		s.policy = NewMeta(cacheAlgorithm)
-	}
-
-	return s
-}
-
-func (s *shard) set(hashedKey uint64, value []byte, TTL string) {
-	s.mux.Lock()
-	index := s.push(value, TTL)
-	s.hashmap[hashedKey] = uint32(index)
-	if s.policy != nil {
-		s.policy.push(uint32(index), hashedKey)
-	}
-	s.mux.Unlock()
-}
-
-func (s *shard) push(value []byte, TTL string) int {
-	dataLen := len(value)
-	index := s.tail
-	duration := helpers.GetDuration(TTL)
-	s.save(value, dataLen, index, duration)
-	return index
-}
-
-func (s *shard) save(value []byte, length int, index int, duration time.Duration) {
-	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(length))
-	binary.LittleEndian.PutUint32(s.timeBuffer, uint32(time.Now().Add(duration).Unix()))
-
-	totalLen := headerEntrySize + timeEntrySize + length
-	tmpBuffer := make([]byte, totalLen)
-
-	copy(tmpBuffer[0:], s.headerBuffer)
-	copy(tmpBuffer[headerEntrySize:], s.timeBuffer)
-	copy(tmpBuffer[headerEntrySize+timeEntrySize:], value)
-
-	copy(s.items[index:], tmpBuffer)
-
-	s.tail += headerEntrySize + timeEntrySize + length
-	s.currentSize += headerEntrySize + timeEntrySize + length
-}
-
-func (s *shard) get(hashedKey uint64) ([]byte, uint32, error) {
-	s.mux.RLock()
-	itemIndex, ok := s.hashmap[hashedKey]
-	if !ok {
-		s.mux.RUnlock()
-		return nil, 0, errors.New("key not found")
-	}
-	blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
-	value := s.items[itemIndex+headerEntrySize+timeEntrySize : int(itemIndex)+headerEntrySize+timeEntrySize+blockSize]
-	s.mux.RUnlock()
-	return value, itemIndex, nil
-}
-
-func (s *shard) delete(keyIndex uint64, itemIndex uint32, valueSize int) {
-	delete(s.hashmap, keyIndex)
-	for k := 0; k < valueSize; k++ {
-		s.items[int(itemIndex)+k] = 0
-	}
-	s.tail -= valueSize
-	s.currentSize -= valueSize
-}
-
-func (s *shard) clean(timestamp int64) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	if len(s.hashmap) > 0 {
-		for keyIndex, itemIndex := range s.hashmap {
-			blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
-			timeValue := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+timeEntrySize]
-			keepTill := binary.LittleEndian.Uint32(timeValue)
-			if uint32(timestamp) > keepTill {
-				s.delete(keyIndex, itemIndex, blockSize+headerEntrySize+timeEntrySize)
-			}
-		}
-	}
-}
-
-func (s *shard) evict(valueSize int) error {
-	itemIndex, keyIndex, err := s.policy.evict()
-	if err != nil {
-		return err
-	}
-	s.mux.Lock()
-	s.delete(keyIndex, itemIndex, valueSize)
-
-	if s.currentSize+valueSize >= s.maxSize {
-		s.mux.Unlock()
-		s.evict(valueSize)
-	}
-
-	s.mux.Unlock()
-	return nil
-}
-
-func setToFallbackShard(hasher fnv64a, shards []*shard, exactShard *shard, hashedKey uint64, value []byte, TTL string) (err error) {
-	for i, shard := range shards {
-		shard.mux.Lock()
-		if shard.currentSize+len(value)+headerEntrySize < shard.maxSize {
-			shard.mux.Unlock()
-			md := md5.Sum(value)
-			valueHash := hex.EncodeToString(md[:16])
-			ref := fmt.Sprintf("shard_reference_%v_val_%v", i, valueHash)
-			shard.set(hasher.sum(ref), value, TTL)
-			exactShard.set(hashedKey, []byte(ref), TTL)
-			return nil
-		}
-		shard.mux.Unlock()
-	}
-	return errors.New("potential exceeding of any shard max capacity")
 }
 
 //ServeFromCache ...
