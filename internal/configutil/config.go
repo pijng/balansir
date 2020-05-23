@@ -1,4 +1,4 @@
-package confg
+package configutil
 
 import "sync"
 

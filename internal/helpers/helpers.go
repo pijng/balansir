@@ -1,7 +1,7 @@
 package helpers
 
 import (
-	"balansir/internal/confg"
+	"balansir/internal/configutil"
 	"balansir/internal/gziputil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
@@ -58,13 +58,13 @@ func AddRemoteAddrToRequest(r *http.Request) *http.Request {
 }
 
 //SetCookieToResponse ...
-func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *confg.Configuration) http.ResponseWriter {
+func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *configutil.Configuration) http.ResponseWriter {
 	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
 	return w
 }
 
 //ServerPoolsEquals ...
-func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool []*confg.Endpoint) bool {
+func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool []*configutil.Endpoint) bool {
 	var sumOfServerHash string
 	for _, server := range incomingPool {
 		serialized, _ := json.Marshal(server)
@@ -119,7 +119,7 @@ func Max(x int, y int) int {
 }
 
 //Contains ...
-func Contains(path string, prefixes []*confg.Rule) (ok bool, ttl string) {
+func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
 	for _, rule := range prefixes {
 		if strings.HasPrefix(path, rule.Path) {
 			return true, rule.TTL

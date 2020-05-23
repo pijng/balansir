@@ -1,7 +1,7 @@
 package metricsutil
 
 import (
-	"balansir/internal/confg"
+	"balansir/internal/configutil"
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"encoding/json"
@@ -51,7 +51,7 @@ func (mp *MetricsPasser) MetrictStats(w http.ResponseWriter, r *http.Request) {
 }
 
 //GetBalansirStats ...
-func GetBalansirStats(rateCounter *rateutil.Rate, configuration *confg.Configuration, servers []*serverutil.Server) Stats {
+func GetBalansirStats(rateCounter *rateutil.Rate, configuration *configutil.Configuration, servers []*serverutil.Server) Stats {
 	endpoints := make([]*endpoint, len(servers))
 	for i, server := range servers {
 		endpoints[i] = &endpoint{

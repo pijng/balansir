@@ -2,7 +2,7 @@ package main
 
 import (
 	"balansir/internal/cacheutil"
-	"balansir/internal/confg"
+	"balansir/internal/configutil"
 	"balansir/internal/helpers"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
@@ -231,7 +231,7 @@ func proxyCacheResponse(r *http.Response) error {
 	return nil
 }
 
-func fillConfiguration(file []byte, config *confg.Configuration) error {
+func fillConfiguration(file []byte, config *configutil.Configuration) error {
 	requestFlow.wg.Add(1)
 
 	processingRequests.Wait()
@@ -397,7 +397,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 	}
 }
 
-var configuration confg.Configuration
+var configuration configutil.Configuration
 var pool poolutil.ServerPool
 var serverPoolWg sync.WaitGroup
 var requestFlow tunnel

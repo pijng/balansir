@@ -1,7 +1,7 @@
 package ratelimit
 
 import (
-	"balansir/internal/confg"
+	"balansir/internal/configutil"
 	"sync"
 	"time"
 
@@ -28,7 +28,7 @@ func NewLimiter() *Limiter {
 }
 
 //GetVisitor ...
-func (v *Limiter) GetVisitor(ip string, configuration *confg.Configuration) *rate.Limiter {
+func (v *Limiter) GetVisitor(ip string, configuration *configutil.Configuration) *rate.Limiter {
 	v.mux.Lock()
 	defer v.mux.Unlock()
 
