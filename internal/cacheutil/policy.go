@@ -22,7 +22,7 @@ const (
 //Meta ...
 type Meta struct {
 	valueMap   [][]byte
-	hashMap    map[uint32]*[]byte
+	hashMap    map[uint32][]byte
 	policyType string
 	mux        sync.RWMutex
 }
@@ -31,7 +31,7 @@ type Meta struct {
 func NewMeta(policyType string) *Meta {
 	return &Meta{
 		valueMap:   make([][]byte, 0),
-		hashMap:    make(map[uint32]*[]byte),
+		hashMap:    make(map[uint32][]byte),
 		policyType: policyType,
 	}
 }
@@ -59,6 +59,7 @@ func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
 	valueBuffer := make([]byte, valueEntrySize)
 	itemIndexBuffer := make([]byte, indexEntrySize)
 	keyIndexBuffer := make([]byte, keyEntrySize)
+
 	binary.LittleEndian.PutUint32(valueBuffer, 0)
 	binary.LittleEndian.PutUint32(itemIndexBuffer, itemIndex)
 	binary.LittleEndian.PutUint64(keyIndexBuffer, keyIndex)
@@ -69,7 +70,7 @@ func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
 
 	meta.valueMap = append(meta.valueMap, tmpBuffer)
 
-	meta.hashMap[itemIndex] = &meta.valueMap[len(meta.valueMap)-1]
+	meta.hashMap[itemIndex] = meta.valueMap[len(meta.valueMap)-1]
 	meta.sort()
 }
 
@@ -77,7 +78,7 @@ func (meta *Meta) updateMetaValue(itemIndex uint32) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	metaHash := *meta.hashMap[itemIndex]
+	metaHash := meta.hashMap[itemIndex]
 	var newValue uint32
 	tmpBuffer := make([]byte, valueEntrySize)
 
@@ -90,7 +91,7 @@ func (meta *Meta) updateMetaValue(itemIndex uint32) {
 
 	binary.LittleEndian.PutUint32(tmpBuffer, newValue)
 	copy(metaHash[:valueEntrySize], tmpBuffer)
-	meta.hashMap[itemIndex] = &metaHash
+	meta.hashMap[itemIndex] = metaHash
 	meta.sort()
 }
 
@@ -106,5 +107,5 @@ func (meta *Meta) evict() (uint32, uint64, error) {
 
 		return itemIndex, keyIndex, nil
 	}
-	return 0, 0, errors.New("can't evict from empty hitsMap")
+	return 0, 0, errors.New("can't evict from empty valueMap")
 }
