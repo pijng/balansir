@@ -192,7 +192,6 @@ func proxyCacheResponse(r *http.Response) error {
 		if err != nil {
 
 			var headers []cacheutil.Header
-			var body cacheutil.Body
 
 			for key, val := range r.Header {
 				header := cacheutil.Header{
@@ -202,8 +201,7 @@ func proxyCacheResponse(r *http.Response) error {
 				headers = append(headers, header)
 			}
 
-			b, _ := ioutil.ReadAll(r.Body)
-			body = b
+			body, _ := ioutil.ReadAll(r.Body)
 
 			response := cacheutil.Response{
 				Headers: headers,
@@ -215,7 +213,7 @@ func proxyCacheResponse(r *http.Response) error {
 			}
 
 			//Reassign response body
-			bodyBuf := bytes.NewBuffer(b)
+			bodyBuf := bytes.NewBuffer(body)
 			r.Body = ioutil.NopCloser(bodyBuf)
 
 			//Set complete response to cache

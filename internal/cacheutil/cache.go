@@ -74,18 +74,19 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
 
-	if len(value)+headerEntrySize > shard.maxSize {
+	if len(value)+headerEntrySize+timeEntrySize > shard.maxSize {
 		shard.mux.Unlock()
-		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value)+headerEntrySize)/1024/1024), shard.maxSize/1024/1024)
+		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.maxSize/1024/1024)
 	}
 
-	if shard.currentSize+len(value)+headerEntrySize >= shard.maxSize {
+	if shard.currentSize+len(value)+headerEntrySize+timeEntrySize >= shard.maxSize {
 		shard.mux.Unlock()
 
 		if shard.policy != nil {
-			if err := shard.evict(len(value) + headerEntrySize); err != nil {
+			if err := shard.evict(len(value) + headerEntrySize + timeEntrySize); err != nil {
 				return err
 			}
+			shard.set(hashedKey, value, TTL)
 			return nil
 		}
 

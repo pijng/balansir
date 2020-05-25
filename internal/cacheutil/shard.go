@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -60,11 +61,11 @@ func (s *Shard) push(value []byte, TTL string) int {
 	return index
 }
 
-func (s *Shard) save(value []byte, length int, index int, duration time.Duration) {
-	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(length))
+func (s *Shard) save(value []byte, valueSize int, index int, duration time.Duration) {
+	binary.LittleEndian.PutUint32(s.headerBuffer, uint32(valueSize))
 	binary.LittleEndian.PutUint32(s.timeBuffer, uint32(time.Now().Add(duration).Unix()))
 
-	totalLen := headerEntrySize + timeEntrySize + length
+	totalLen := headerEntrySize + timeEntrySize + valueSize
 	tmpBuffer := make([]byte, totalLen)
 
 	copy(tmpBuffer[0:], s.headerBuffer)
@@ -73,8 +74,8 @@ func (s *Shard) save(value []byte, length int, index int, duration time.Duration
 
 	copy(s.items[index:], tmpBuffer)
 
-	s.tail += headerEntrySize + timeEntrySize + length
-	s.currentSize += headerEntrySize + timeEntrySize + length
+	s.tail += totalLen
+	s.currentSize += totalLen
 }
 
 func (s *Shard) get(hashedKey uint64) ([]byte, uint32, error) {
@@ -95,8 +96,10 @@ func (s *Shard) delete(keyIndex uint64, itemIndex uint32, valueSize int) {
 	for k := 0; k < valueSize; k++ {
 		s.items[int(itemIndex)+k] = 0
 	}
-	s.tail -= valueSize
 	s.currentSize -= valueSize
+	tmpBuffer := make([]byte, cap(s.items)+valueSize)
+	copy(tmpBuffer[0:], s.items)
+	s.items = tmpBuffer
 }
 
 func (s *Shard) clean(timestamp int64) {
@@ -114,17 +117,39 @@ func (s *Shard) clean(timestamp int64) {
 	}
 }
 
-func (s *Shard) evict(valueSize int) error {
+func (s *Shard) retryEvict(pendingValueSize int) error {
+	itemIndex, keyIndex, err := s.policy.evict()
+	if err != nil {
+		return err
+	}
+
+	blockSize := binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+valueEntrySize])
+
+	s.delete(keyIndex, itemIndex, int(blockSize)+headerEntrySize+timeEntrySize)
+
+	if s.maxSize-s.currentSize <= pendingValueSize {
+		if err := s.retryEvict(pendingValueSize); err != nil {
+			log.Println(err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Shard) evict(pendingValueSize int) error {
 	itemIndex, keyIndex, err := s.policy.evict()
 	if err != nil {
 		return err
 	}
 	s.mux.Lock()
-	s.delete(keyIndex, itemIndex, valueSize)
 
-	if s.currentSize+valueSize >= s.maxSize {
-		s.mux.Unlock()
-		s.evict(valueSize)
+	blockSize := binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+valueEntrySize])
+	s.delete(keyIndex, itemIndex, int(blockSize)+headerEntrySize+timeEntrySize)
+
+	if s.maxSize-s.currentSize <= pendingValueSize {
+		if err := s.retryEvict(pendingValueSize); err != nil {
+			log.Println(err)
+		}
 	}
 
 	s.mux.Unlock()

@@ -21,26 +21,20 @@ const (
 
 //Meta ...
 type Meta struct {
-	valueMap        [][]byte
-	hashMap         map[uint32]*[]byte
-	tmpBuffer       []byte
-	valueBuffer     []byte
-	itemIndexBuffer []byte
-	keyIndexBuffer  []byte
-	policyType      string
-	mux             sync.RWMutex
+	valueMap    [][]byte
+	hashMap     map[uint32]*[]byte
+	valueBuffer []byte
+	policyType  string
+	mux         sync.RWMutex
 }
 
 //NewMeta ...
 func NewMeta(policyType string) *Meta {
 	return &Meta{
-		valueMap:        make([][]byte, 0),
-		hashMap:         make(map[uint32]*[]byte),
-		tmpBuffer:       make([]byte, valueEntrySize+indexEntrySize+keyEntrySize),
-		valueBuffer:     make([]byte, valueEntrySize),
-		itemIndexBuffer: make([]byte, indexEntrySize),
-		keyIndexBuffer:  make([]byte, keyEntrySize),
-		policyType:      policyType,
+		valueMap:    make([][]byte, 0),
+		hashMap:     make(map[uint32]*[]byte),
+		valueBuffer: make([]byte, valueEntrySize),
+		policyType:  policyType,
 	}
 }
 
@@ -63,15 +57,19 @@ func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	binary.LittleEndian.PutUint32(meta.valueBuffer, 0)
-	binary.LittleEndian.PutUint32(meta.itemIndexBuffer, itemIndex)
-	binary.LittleEndian.PutUint64(meta.keyIndexBuffer, keyIndex)
+	tmpBuffer := make([]byte, valueEntrySize+indexEntrySize+keyEntrySize)
+	valueBuffer := make([]byte, valueEntrySize)
+	itemIndexBuffer := make([]byte, indexEntrySize)
+	keyIndexBuffer := make([]byte, keyEntrySize)
+	binary.LittleEndian.PutUint32(valueBuffer, 0)
+	binary.LittleEndian.PutUint32(itemIndexBuffer, itemIndex)
+	binary.LittleEndian.PutUint64(keyIndexBuffer, keyIndex)
 
-	copy(meta.tmpBuffer[0:], meta.valueBuffer)
-	copy(meta.tmpBuffer[valueEntrySize:], meta.itemIndexBuffer)
-	copy(meta.tmpBuffer[valueEntrySize+indexEntrySize:], meta.keyIndexBuffer)
+	copy(tmpBuffer[0:], valueBuffer)
+	copy(tmpBuffer[valueEntrySize:], itemIndexBuffer)
+	copy(tmpBuffer[valueEntrySize+indexEntrySize:], keyIndexBuffer)
 
-	meta.valueMap = append(meta.valueMap, meta.tmpBuffer)
+	meta.valueMap = append(meta.valueMap, tmpBuffer)
 
 	meta.hashMap[itemIndex] = &meta.valueMap[len(meta.valueMap)-1]
 	meta.sort()
