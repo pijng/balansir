@@ -21,20 +21,18 @@ const (
 
 //Meta ...
 type Meta struct {
-	valueMap    [][]byte
-	hashMap     map[uint32]*[]byte
-	valueBuffer []byte
-	policyType  string
-	mux         sync.RWMutex
+	valueMap   [][]byte
+	hashMap    map[uint32]*[]byte
+	policyType string
+	mux        sync.RWMutex
 }
 
 //NewMeta ...
 func NewMeta(policyType string) *Meta {
 	return &Meta{
-		valueMap:    make([][]byte, 0),
-		hashMap:     make(map[uint32]*[]byte),
-		valueBuffer: make([]byte, valueEntrySize),
-		policyType:  policyType,
+		valueMap:   make([][]byte, 0),
+		hashMap:    make(map[uint32]*[]byte),
+		policyType: policyType,
 	}
 }
 
@@ -79,19 +77,20 @@ func (meta *Meta) updateMetaValue(itemIndex uint32) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	valueBuffer := *meta.hashMap[itemIndex]
+	metaHash := *meta.hashMap[itemIndex]
 	var newValue uint32
+	tmpBuffer := make([]byte, valueEntrySize)
 
 	switch meta.policyType {
 	case _LFU, _MFU:
-		newValue = binary.LittleEndian.Uint32(valueBuffer[:valueEntrySize]) + 1
+		newValue = binary.LittleEndian.Uint32(metaHash[:valueEntrySize]) + 1
 	case _LRU, _MRU:
 		newValue = uint32(time.Now().Unix())
 	}
-	binary.LittleEndian.PutUint32(meta.valueBuffer, newValue)
 
-	valueBuffer = append(meta.valueBuffer, valueBuffer[valueEntrySize:]...)
-	*meta.hashMap[itemIndex] = valueBuffer
+	binary.LittleEndian.PutUint32(tmpBuffer, newValue)
+	copy(metaHash[:valueEntrySize], tmpBuffer)
+	meta.hashMap[itemIndex] = &metaHash
 	meta.sort()
 }
 
