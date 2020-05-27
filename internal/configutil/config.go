@@ -31,6 +31,7 @@ type Configuration struct {
 	CacheShardMaxSizeMb      int         `json:"cache_shard_max_size_mb"`
 	CacheAlgorithm           string      `json:"cache_algorithm"`
 	CacheShardExceedFallback bool        `json:"cache_shard_exceed_fallback"`
+	CacheBackgroundUpdate    bool        `json:"cache_background_update"`
 	CacheRules               []*Rule     `json:"cache_rules"`
 }
 

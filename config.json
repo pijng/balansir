@@ -22,12 +22,13 @@
     "rate_bucket": 450,
     "transparent_proxy_mode": false,
     "balancing_algorithm": "weighted-least-connections",
-    "cache": false,
-    "cache_shards_amount": 8,
-    "cache_shard_max_size_mb": 128,
+    "cache": true,
+    "cache_shards_amount": 1,
+    "cache_shard_max_size_mb": 2,
     "cache_algorithm": "LFU",
     "cache_shard_exceed_fallback": false,
+    "cache_background_update": true,
     "cache_rules": [
-        {"path": "/static/", "ttl": "5.Minute"}
+        {"path": "/static/", "ttl": "10.Second"}
     ]
 }

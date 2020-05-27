@@ -425,7 +425,19 @@ func main() {
 	}
 
 	if configuration.Cache {
-		cacheCluster = cacheutil.New(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb, configuration.CacheShardExceedFallback, configuration.CacheAlgorithm)
+		args := cacheutil.CacheClusterArgs{
+			ShardsAmount:     configuration.CacheShardsAmount,
+			MaxSize:          configuration.CacheShardMaxSizeMb,
+			ExceedFallback:   configuration.CacheShardExceedFallback,
+			CacheAlgorithm:   configuration.CacheAlgorithm,
+			BackgroundUpdate: configuration.CacheBackgroundUpdate,
+			TransportTimeout: configuration.WriteTimeout,
+			DialerTimeout:    configuration.ReadTimeout,
+			CacheRules:       configuration.CacheRules,
+			Port:             configuration.Port,
+		}
+
+		cacheCluster = cacheutil.New(args)
 		debug.SetGCPercent(cacheutil.GCPercentRatio(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb))
 		log.Print("Cache enabled")
 	}

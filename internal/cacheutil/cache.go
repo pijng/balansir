@@ -1,6 +1,7 @@
 package cacheutil
 
 import (
+	"balansir/internal/configutil"
 	"balansir/internal/helpers"
 	"encoding/json"
 	"errors"
@@ -34,21 +35,44 @@ func (f fnv64a) sum(key string) uint64 {
 
 //CacheCluster ...
 type CacheCluster struct {
-	shards         []*Shard
-	hash           fnv64a
-	shardsAmount   int
-	exceedFallback bool
+	shards           []*Shard
+	hash             fnv64a
+	shardsAmount     int
+	exceedFallback   bool
+	backgroundUpdate bool
+	updater          *Updater
+	cacheRules       []*configutil.Rule
+}
+
+//CacheClusterArgs ...
+type CacheClusterArgs struct {
+	ShardsAmount     int
+	MaxSize          int
+	ExceedFallback   bool
+	CacheAlgorithm   string
+	BackgroundUpdate bool
+	CacheRules       []*configutil.Rule
+	TransportTimeout int
+	DialerTimeout    int
+	Port             int
 }
 
 //New ...
-func New(shardsAmount int, maxSize int, exceedFallback bool, cacheAlgorithm string) *CacheCluster {
+func New(args CacheClusterArgs) *CacheCluster {
 	cache := &CacheCluster{
-		shards:         make([]*Shard, shardsAmount),
-		shardsAmount:   shardsAmount,
-		exceedFallback: exceedFallback,
+		shards:         make([]*Shard, args.ShardsAmount),
+		shardsAmount:   args.ShardsAmount,
+		exceedFallback: args.ExceedFallback,
+		cacheRules:     args.CacheRules,
 	}
-	for i := 0; i < shardsAmount; i++ {
-		cache.shards[i] = CreateShard(maxSize*mbBytes, cacheAlgorithm)
+
+	if args.BackgroundUpdate {
+		cache.backgroundUpdate = args.BackgroundUpdate
+		cache.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
+	}
+
+	for i := 0; i < args.ShardsAmount; i++ {
+		cache.shards[i] = CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
 	}
 
 	go func() {
@@ -87,6 +111,11 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 				return err
 			}
 			shard.set(hashedKey, value, TTL)
+
+			if cluster.updater != nil {
+				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
+			}
+
 			return nil
 		}
 
@@ -94,6 +123,11 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value, TTL); err != nil {
 				return err
 			}
+
+			if cluster.updater != nil {
+				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
+			}
+
 			return nil
 		}
 
@@ -101,6 +135,11 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	}
 	shard.mux.Unlock()
 	shard.set(hashedKey, value, TTL)
+
+	if cluster.updater != nil {
+		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
+	}
+
 	return nil
 }
 
@@ -126,7 +165,7 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 
 func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
-		shard.clean(timestamp)
+		shard.update(timestamp, cluster.updater, cluster.cacheRules)
 	}
 }
 

@@ -1,6 +1,7 @@
 package cacheutil
 
 import (
+	"balansir/internal/configutil"
 	"balansir/internal/helpers"
 	"crypto/md5"
 	"encoding/binary"
@@ -102,7 +103,7 @@ func (s *Shard) delete(keyIndex uint64, itemIndex uint32, valueSize int) {
 	s.items = tmpBuffer
 }
 
-func (s *Shard) clean(timestamp int64) {
+func (s *Shard) update(timestamp int64, updater *Updater, rules []*configutil.Rule) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	if len(s.hashmap) > 0 {
@@ -110,11 +111,36 @@ func (s *Shard) clean(timestamp int64) {
 			blockSize := int(binary.LittleEndian.Uint32(s.items[itemIndex : itemIndex+headerEntrySize]))
 			timeValue := s.items[itemIndex+headerEntrySize : itemIndex+headerEntrySize+timeEntrySize]
 			keepTill := binary.LittleEndian.Uint32(timeValue)
+
 			if uint32(timestamp) > keepTill {
+				//delete stale version in any case
 				s.delete(keyIndex, itemIndex, blockSize+headerEntrySize+timeEntrySize)
+
+				if updater != nil {
+					urlString, err := updater.keyStorage.GetInitialKey(keyIndex)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+
+					value, err := updater.InvalidateCachedResponse(urlString, &s.mux)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+
+					//get TTL for a given url and replace cached value
+					if ok, TTL := helpers.Contains(urlString, rules); ok {
+						s.replaceValue(value, TTL)
+					}
+				}
 			}
 		}
 	}
+}
+
+func (s *Shard) replaceValue(value []byte, TTL string) {
+	log.Println("CHECK")
 }
 
 func (s *Shard) retryEvict(pendingValueSize int) error {
