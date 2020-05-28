@@ -123,24 +123,15 @@ func (s *Shard) update(timestamp int64, updater *Updater, rules []*configutil.Ru
 						continue
 					}
 
-					value, err := updater.InvalidateCachedResponse(urlString, &s.mux)
+					err = updater.InvalidateCachedResponse(urlString, &s.mux)
 					if err != nil {
 						log.Println(err)
 						continue
-					}
-
-					//get TTL for a given url and replace cached value
-					if ok, TTL := helpers.Contains(urlString, rules); ok {
-						s.replaceValue(value, TTL)
 					}
 				}
 			}
 		}
 	}
-}
-
-func (s *Shard) replaceValue(value []byte, TTL string) {
-	log.Println("CHECK")
 }
 
 func (s *Shard) retryEvict(pendingValueSize int) error {

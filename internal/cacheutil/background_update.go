@@ -1,9 +1,7 @@
 package cacheutil
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
@@ -34,38 +32,13 @@ func NewUpdater(port int, transportTimeout int, dialerTimeout int) *Updater {
 }
 
 //InvalidateCachedResponse ...
-func (u *Updater) InvalidateCachedResponse(url string, mux *sync.RWMutex) ([]byte, error) {
+func (u *Updater) InvalidateCachedResponse(url string, mux *sync.RWMutex) error {
 	mux.Unlock()
 	defer mux.Lock()
 
-	r, err := u.client.Get(fmt.Sprintf("http://127.0.0.1:%v%v", u.port, url))
+	_, err := u.client.Get(fmt.Sprintf("http://127.0.0.1:%v%v", u.port, url))
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	defer r.Body.Close()
-
-	var headers []Header
-
-	for key, val := range r.Header {
-		header := Header{
-			Key:   key,
-			Value: val,
-		}
-		headers = append(headers, header)
-	}
-
-	body, _ := ioutil.ReadAll(r.Body)
-
-	response := Response{
-		Headers: headers,
-		Body:    body,
-	}
-
-	resp, err := json.Marshal(response)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return nil
 }
