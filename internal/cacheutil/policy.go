@@ -42,8 +42,8 @@ func NewMeta(policyType string) *Meta {
 
 func (meta *Meta) getEvictionItem() (int, uint64) {
 	values := make([]HashValue, 0, len(meta.hashMap))
-	for i, v := range meta.hashMap {
-		values[i] = HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex}
+	for _, v := range meta.hashMap {
+		values = append(values, HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex})
 	}
 
 	switch meta.policyType {

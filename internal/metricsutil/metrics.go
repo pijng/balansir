@@ -92,6 +92,7 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 func getRSSUsage() int64 {
 	// syscall.Getrusage(syscall.RUSAGE_SELF, &memR)
 	// https://utcc.utoronto.ca/~cks/space/blog/programming/GoNoMemoryFreeing
+	// return int64(mem.HeapInuse) / 1024 / 1024
 	return int64(mem.HeapSys-mem.HeapIdle) / 1024 / 1024
 }
 
