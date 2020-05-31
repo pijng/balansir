@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"syscall"
 	"time"
 )
 
-var mem syscall.Rusage
+var memR syscall.Rusage
+var mem runtime.MemStats
 
 //Stats ...
 type Stats struct {
@@ -52,6 +54,7 @@ func (mp *MetricsPasser) MetrictStats(w http.ResponseWriter, r *http.Request) {
 
 //GetBalansirStats ...
 func GetBalansirStats(rateCounter *rateutil.Rate, configuration *configutil.Configuration, servers []*serverutil.Server) Stats {
+	runtime.ReadMemStats(&mem)
 	endpoints := make([]*endpoint, len(servers))
 	for i, server := range servers {
 		endpoints[i] = &endpoint{
@@ -87,8 +90,9 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRSSUsage() int64 {
-	syscall.Getrusage(syscall.RUSAGE_SELF, &mem)
-	return mem.Maxrss / 1024 / 1024
+	// syscall.Getrusage(syscall.RUSAGE_SELF, &memR)
+	// https://utcc.utoronto.ca/~cks/space/blog/programming/GoNoMemoryFreeing
+	return int64(mem.HeapSys-mem.HeapIdle) / 1024 / 1024
 }
 
 func getErrorsCount() int64 {

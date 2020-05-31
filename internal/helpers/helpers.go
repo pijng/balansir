@@ -57,6 +57,13 @@ func AddRemoteAddrToRequest(r *http.Request) *http.Request {
 	return r
 }
 
+func setSecureHeaders(w http.ResponseWriter) http.ResponseWriter {
+	w.Header().Add("X-XSS-Protection", "1; mode=block")
+	w.Header().Add("X-Content-Type-Options", "nosniff")
+	w.Header().Add("X-Frame-Options", "deny")
+	return w
+}
+
 //SetCookieToResponse ...
 func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *configutil.Configuration) http.ResponseWriter {
 	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
@@ -90,6 +97,8 @@ func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseW
 		return
 	}
 	connection.Close()
+
+	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
 }
 

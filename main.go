@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
+	// _ "net/http/pprof"
 )
 
 type tunnel struct {
@@ -123,9 +124,11 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rateCounter.RateIncrement()
-	rtStart := time.Now()
-	defer rateCounter.ResponseCount(rtStart)
+	if r.Header.Get("X-Balansir-Background-Update") == "" {
+		rateCounter.RateIncrement()
+		rtStart := time.Now()
+		defer rateCounter.ResponseCount(rtStart)
+	}
 
 	if configuration.TransparentProxyMode {
 		r = helpers.AddRemoteAddrToRequest(r)
@@ -191,36 +194,39 @@ func proxyCacheResponse(r *http.Response) error {
 		_, err := cacheCluster.Get(r.Request.URL.Path)
 		if err != nil {
 
-			var headers []cacheutil.Header
+			//Create byte buffer for all response' headers and iterate over 'em
+			headerBuf := bytes.NewBuffer([]byte{})
 
 			for key, val := range r.Header {
-				header := cacheutil.Header{
-					Key:   key,
-					Value: val,
+				//Write header's key to buffer
+				headerBuf.Write([]byte(key))
+				//Add delimeter so we can split header key later
+				headerBuf.Write([]byte(";-;"))
+				//Create byte buffer for header value
+				headerValueBuf := bytes.NewBuffer([]byte{})
+				//Header value is a string slice, so iterate over it to correctly write it to a buffer
+				for _, v := range val {
+					headerValueBuf.Write([]byte(v))
 				}
-				headers = append(headers, header)
+				//Write complete header value to headers buffer
+				headerBuf.Write(headerValueBuf.Bytes())
+				//Add another delimeter so we can split headers out of each other
+				headerBuf.Write([]byte(";--;"))
 			}
 
-			body, _ := ioutil.ReadAll(r.Body)
-
-			response := cacheutil.Response{
-				Headers: headers,
-				Body:    body,
-			}
-			resp, err := json.Marshal(response)
-			if err != nil {
-				return err
-			}
+			//Read response body, write it to buffer
+			b, _ := ioutil.ReadAll(r.Body)
+			bodyBuf := bytes.NewBuffer(b)
 
 			//Reassign response body
-			bodyBuf := bytes.NewBuffer(body)
 			r.Body = ioutil.NopCloser(bodyBuf)
 
-			//Set complete response to cache
-			//`Set` returns an error if response couldn't be written to shard, due to
-			//potential exceeding of max capacity.
-			//Consider adding some logger here (why?)
-			err = cacheCluster.Set(r.Request.URL.Path, resp, TTL)
+			//Create new buffer. Write our headers and body
+			respBuf := bytes.NewBuffer([]byte{})
+			respBuf.Write(headerBuf.Bytes())
+			respBuf.Write(bodyBuf.Bytes())
+
+			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
 			if err != nil {
 				log.Println(err)
 			}
@@ -452,6 +458,9 @@ func main() {
 			listenAndServeTLSWithSelfSignedCerts()
 		}
 	} else {
+		// go func() {
+		// 	log.Println(http.ListenAndServe("localhost:8080", nil))
+		// }()
 		server := http.Server{
 			Addr:         ":" + strconv.Itoa(configuration.Port),
 			Handler:      newServeMux(),

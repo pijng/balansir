@@ -1,7 +1,6 @@
 package cacheutil
 
 import (
-	"encoding/binary"
 	"errors"
 	"sort"
 	"sync"
@@ -21,89 +20,75 @@ const (
 
 //Meta ...
 type Meta struct {
-	valueMap   [][]byte
-	hashMap    map[uint32][]byte
+	hashMap    map[uint64]HashValue
 	policyType string
 	mux        sync.RWMutex
+}
+
+//HashValue ...
+type HashValue struct {
+	value     int64
+	itemIndex int
+	keyIndex  uint64
 }
 
 //NewMeta ...
 func NewMeta(policyType string) *Meta {
 	return &Meta{
-		valueMap:   make([][]byte, 0),
-		hashMap:    make(map[uint32][]byte),
+		hashMap:    make(map[uint64]HashValue),
 		policyType: policyType,
 	}
 }
 
-func (meta *Meta) sort() {
+func (meta *Meta) getEvictionItem() (int, uint64) {
+	values := make([]HashValue, 0, len(meta.hashMap))
+	for i, v := range meta.hashMap {
+		values[i] = HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex}
+	}
+
 	switch meta.policyType {
 	case _MRU, _MFU:
-		sort.SliceStable(meta.valueMap, func(i, j int) bool {
-			return binary.LittleEndian.Uint32(meta.valueMap[i][:valueEntrySize]) > binary.LittleEndian.Uint32(meta.valueMap[j][:valueEntrySize])
+		sort.SliceStable(values, func(i, j int) bool {
+			return values[i].value > values[j].value
 		})
 	case _LRU, _LFU:
-		sort.SliceStable(meta.valueMap, func(i, j int) bool {
-			return binary.LittleEndian.Uint32(meta.valueMap[i][:valueEntrySize]) < binary.LittleEndian.Uint32(meta.valueMap[j][:valueEntrySize])
+		sort.SliceStable(values, func(i, j int) bool {
+			return values[i].value < values[j].value
 		})
 	case _FiFo:
-		return
 	}
+
+	return values[0].itemIndex, values[0].keyIndex
 }
 
-func (meta *Meta) push(itemIndex uint32, keyIndex uint64) {
+func (meta *Meta) push(itemIndex int, keyIndex uint64) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	tmpBuffer := make([]byte, valueEntrySize+indexEntrySize+keyEntrySize)
-	valueBuffer := make([]byte, valueEntrySize)
-	itemIndexBuffer := make([]byte, indexEntrySize)
-	keyIndexBuffer := make([]byte, keyEntrySize)
-
-	binary.LittleEndian.PutUint32(valueBuffer, 0)
-	binary.LittleEndian.PutUint32(itemIndexBuffer, itemIndex)
-	binary.LittleEndian.PutUint64(keyIndexBuffer, keyIndex)
-
-	copy(tmpBuffer[0:], valueBuffer)
-	copy(tmpBuffer[valueEntrySize:], itemIndexBuffer)
-	copy(tmpBuffer[valueEntrySize+indexEntrySize:], keyIndexBuffer)
-
-	meta.valueMap = append(meta.valueMap, tmpBuffer)
-
-	meta.hashMap[itemIndex] = meta.valueMap[len(meta.valueMap)-1]
-	meta.sort()
+	meta.hashMap[keyIndex] = HashValue{value: 0, itemIndex: itemIndex, keyIndex: keyIndex}
 }
 
-func (meta *Meta) updateMetaValue(itemIndex uint32) {
+func (meta *Meta) updateMetaValue(keyIndex uint64) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	metaHash := meta.hashMap[itemIndex]
-	var newValue uint32
-	tmpBuffer := make([]byte, valueEntrySize)
+	metaHash := meta.hashMap[keyIndex]
 
 	switch meta.policyType {
 	case _LFU, _MFU:
-		newValue = binary.LittleEndian.Uint32(metaHash[:valueEntrySize]) + 1
+		metaHash.value++
 	case _LRU, _MRU:
-		newValue = uint32(time.Now().Unix())
+		metaHash.value = time.Now().Unix()
 	}
-
-	binary.LittleEndian.PutUint32(tmpBuffer, newValue)
-	copy(metaHash[:valueEntrySize], tmpBuffer)
-	meta.hashMap[itemIndex] = metaHash
-	meta.sort()
 }
 
-func (meta *Meta) evict() (uint32, uint64, error) {
+func (meta *Meta) evict() (int, uint64, error) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
-	if len(meta.valueMap) > 0 {
-		itemIndex := binary.LittleEndian.Uint32(meta.valueMap[0][valueEntrySize : valueEntrySize+indexEntrySize])
-		keyIndex := binary.LittleEndian.Uint64(meta.valueMap[0][valueEntrySize+indexEntrySize : valueEntrySize+indexEntrySize+keyEntrySize])
+	if len(meta.hashMap) > 0 {
 
-		delete(meta.hashMap, itemIndex)
-		meta.valueMap = meta.valueMap[1:]
+		itemIndex, keyIndex := meta.getEvictionItem()
+		delete(meta.hashMap, keyIndex)
 
 		return itemIndex, keyIndex, nil
 	}
