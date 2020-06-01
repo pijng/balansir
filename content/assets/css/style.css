@@ -492,7 +492,7 @@ body {
 
 .date-picker .calendar .time {
   margin: 12px auto 20px auto;
-  width: 184px;
+  width: fit-content;
 }
 
 .date-picker .calendar .time input {

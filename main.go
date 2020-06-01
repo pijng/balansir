@@ -85,10 +85,8 @@ func newServeMux() *http.ServeMux {
 	sm.HandleFunc("/", loadBalance)
 	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 
-	statsChannel := make(chan metricsutil.Stats, 1)
-	go startMetricsPolling(statsChannel)
-	mp := &metricsutil.MetricsPasser{MetricsChan: statsChannel}
-	sm.HandleFunc("/balansir/metrics/stats", mp.MetrictStats)
+	startMetricsPolling()
+	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 
 	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
 	return sm
@@ -178,12 +176,8 @@ func serversCheck() {
 	}
 }
 
-func startMetricsPolling(stats chan<- metricsutil.Stats) {
-	stats <- metricsutil.Stats{}
-	for {
-		availableEndpoints := poolutil.ExcludeUnavailableServers(pool.ServerList)
-		stats <- metricsutil.GetBalansirStats(rateCounter, &configuration, availableEndpoints)
-	}
+func startMetricsPolling() {
+	metricsutil.Init(rateCounter, &configuration, pool.ServerList)
 }
 
 func proxyCacheResponse(r *http.Response) error {
@@ -365,10 +359,8 @@ func listenAndServeTLSWithAutocert() {
 		http.HandleFunc("/", loadBalance)
 		http.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 
-		statsChannel := make(chan metricsutil.Stats, 1)
-		go startMetricsPolling(statsChannel)
-		mp := &metricsutil.MetricsPasser{MetricsChan: statsChannel}
-		http.HandleFunc("/balansir/metrics/stats", mp.MetrictStats)
+		startMetricsPolling()
+		http.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 
 		err := http.ListenAndServe(
 			":"+strconv.Itoa(port),

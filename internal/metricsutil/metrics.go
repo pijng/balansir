@@ -2,6 +2,7 @@ package metricsutil
 
 import (
 	"balansir/internal/configutil"
+	"balansir/internal/metricsutil/pstats"
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"encoding/json"
@@ -34,31 +35,39 @@ type Stats struct {
 
 type endpoint struct {
 	URL               string  `json:"url"`
+	Active            bool    `json:"active"`
 	Weight            float64 `json:"weight"`
 	ActiveConnections float64 `json:"active_connections"`
 	ServerHash        string  `json:"server_hash"`
 }
 
-//MetricsPasser ...
-type MetricsPasser struct {
-	MetricsChan chan Stats
-}
-
 //MetrictStats ...
-func (mp *MetricsPasser) MetrictStats(w http.ResponseWriter, r *http.Request) {
-	val := <-mp.MetricsChan
+func MetrictStats(w http.ResponseWriter, r *http.Request) {
+	val := GetBalansirStats()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(val)
 }
 
+var rateCounter *rateutil.Rate
+var configuration *configutil.Configuration
+var servers []*serverutil.Server
+
+//Init ...
+func Init(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server) {
+	rateCounter = rc
+	configuration = c
+	servers = s
+}
+
 //GetBalansirStats ...
-func GetBalansirStats(rateCounter *rateutil.Rate, configuration *configutil.Configuration, servers []*serverutil.Server) Stats {
+func GetBalansirStats() Stats {
 	runtime.ReadMemStats(&mem)
 	endpoints := make([]*endpoint, len(servers))
 	for i, server := range servers {
 		endpoints[i] = &endpoint{
 			server.URL.String(),
+			server.Alive,
 			server.Weight,
 			server.ActiveConnections.Value(),
 			server.ServerHash,
@@ -90,10 +99,31 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRSSUsage() int64 {
-	// syscall.Getrusage(syscall.RUSAGE_SELF, &memR)
 	// https://utcc.utoronto.ca/~cks/space/blog/programming/GoNoMemoryFreeing
+	// Needs additional investigation, since go MAY return RSS back to OS
 	// return int64(mem.HeapInuse) / 1024 / 1024
-	return int64(mem.HeapSys-mem.HeapIdle) / 1024 / 1024
+	// return int64(mem.HeapSys-mem.HeapIdle) / 1024 / 1024
+
+	var rss int64
+	var err error
+
+	os := runtime.GOOS
+	switch os {
+	case "darwin":
+		rss, err = pstats.GetRSSInfoDarwin()
+		if err != nil {
+			//check for error
+		}
+	case "linux":
+		rss, err = pstats.GetRSSInfoLinux()
+		if err != nil {
+			//check for error
+		}
+	default:
+		rss, err = 0, nil
+	}
+
+	return rss
 }
 
 func getErrorsCount() int64 {
