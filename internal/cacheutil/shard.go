@@ -58,7 +58,7 @@ func (s *Shard) set(hashedKey uint64, value []byte, TTL string) {
 	s.hashmap[hashedKey] = shardItem{index: index, length: len(value), ttl: ttl}
 
 	if s.policy != nil {
-		s.policy.push(index, hashedKey)
+		s.policy.push(index, hashedKey, TTL)
 	}
 	s.mux.Unlock()
 }
@@ -111,8 +111,15 @@ func (s *Shard) update(timestamp int64, updater *Updater, rules []*configutil.Ru
 	defer s.mux.Unlock()
 	if len(s.hashmap) > 0 {
 		for keyIndex, item := range s.hashmap {
+			ttl := item.ttl
 
-			if timestamp > item.ttl {
+			if s.policy != nil {
+				if s.policy.TimeBased() {
+					ttl = s.policy.hashMap[keyIndex].value
+				}
+			}
+
+			if timestamp > ttl {
 				//delete stale version in any case
 				s.delete(keyIndex, item.index, item.length)
 

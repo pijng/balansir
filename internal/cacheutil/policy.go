@@ -1,6 +1,7 @@
 package cacheutil
 
 import (
+	"balansir/internal/helpers"
 	"errors"
 	"sort"
 	"sync"
@@ -30,6 +31,7 @@ type HashValue struct {
 	value     int64
 	itemIndex int
 	keyIndex  uint64
+	ttl       string
 }
 
 //NewMeta ...
@@ -43,7 +45,7 @@ func NewMeta(policyType string) *Meta {
 func (meta *Meta) getEvictionItem() (int, uint64) {
 	values := make([]HashValue, 0, len(meta.hashMap))
 	for _, v := range meta.hashMap {
-		values = append(values, HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex})
+		values = append(values, HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex, ttl: v.ttl})
 	}
 
 	switch meta.policyType {
@@ -61,11 +63,23 @@ func (meta *Meta) getEvictionItem() (int, uint64) {
 	return values[0].itemIndex, values[0].keyIndex
 }
 
-func (meta *Meta) push(itemIndex int, keyIndex uint64) {
+func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	meta.hashMap[keyIndex] = HashValue{value: 0, itemIndex: itemIndex, keyIndex: keyIndex}
+	var value int64
+
+	switch meta.policyType {
+	case _MRU, _LRU:
+		duration := helpers.GetDuration(TTL)
+		value = time.Now().Add(duration).Unix()
+	case _MFU, _LFU:
+		value = 0
+	default:
+		value = 0
+	}
+
+	meta.hashMap[keyIndex] = HashValue{value: value, itemIndex: itemIndex, keyIndex: keyIndex, ttl: TTL}
 }
 
 func (meta *Meta) updateMetaValue(keyIndex uint64) {
@@ -78,8 +92,11 @@ func (meta *Meta) updateMetaValue(keyIndex uint64) {
 	case _LFU, _MFU:
 		metaHash.value++
 	case _LRU, _MRU:
-		metaHash.value = time.Now().Unix()
+		duration := helpers.GetDuration(metaHash.ttl)
+		metaHash.value = time.Now().Add(duration).Unix()
 	}
+
+	meta.hashMap[keyIndex] = metaHash
 }
 
 func (meta *Meta) evict() (int, uint64, error) {
@@ -93,4 +110,12 @@ func (meta *Meta) evict() (int, uint64, error) {
 		return itemIndex, keyIndex, nil
 	}
 	return 0, 0, errors.New("can't evict from empty valueMap")
+}
+
+//TimeBased ...
+func (meta *Meta) TimeBased() bool {
+	if meta.policyType == "LRU" || meta.policyType == "MRU" {
+		return true
+	}
+	return false
 }
