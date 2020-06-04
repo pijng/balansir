@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,6 +39,8 @@ type CacheCluster struct {
 	shards           []*Shard
 	hash             fnv64a
 	shardsAmount     int
+	hits             int64
+	misses           int64
 	exceedFallback   bool
 	backgroundUpdate bool
 	updater          *Updater
@@ -157,8 +160,14 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 			value, err = shard.get(hashedKey)
 		}
 	}
-	if err == nil && shard.policy != nil {
-		shard.policy.updateMetaValue(hashedKey)
+	if err == nil {
+		atomic.AddInt64(&cluster.hits, 1)
+		if shard.policy != nil {
+			shard.policy.updateMetaValue(hashedKey)
+		}
+	}
+	if err != nil {
+		atomic.AddInt64(&cluster.misses, 1)
 	}
 	return value, err
 }
@@ -196,6 +205,12 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func (cluster *CacheCluster) getHitMissRation() float64 {
+	hits := atomic.LoadInt64(&cluster.hits)
+	misses := atomic.LoadInt64(&cluster.misses)
+	return float64(hits / misses)
 }
 
 //GCPercentRatio ...
