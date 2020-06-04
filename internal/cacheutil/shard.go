@@ -1,7 +1,5 @@
 package cacheutil
 
-// //#include <stdlib.h>
-// import "C"
 import (
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
@@ -12,13 +10,11 @@ import (
 	"log"
 	"sync"
 	"time"
-	// "unsafe"
 )
 
 //Shard ...
 type Shard struct {
-	hashmap map[uint64]shardItem
-	// items   map[int]unsafe.Pointer
+	hashmap     map[uint64]shardItem
 	items       map[int][]byte
 	tail        int
 	mux         sync.RWMutex
@@ -37,7 +33,6 @@ type shardItem struct {
 func CreateShard(maxSize int, cacheAlgorithm string) *Shard {
 	s := &Shard{
 		hashmap: make(map[uint64]shardItem),
-		// items:   make(map[int]unsafe.Pointer, 0),
 		items:   make(map[int][]byte),
 		tail:    0,
 		maxSize: maxSize,
@@ -71,8 +66,6 @@ func (s *Shard) push(value []byte) int {
 }
 
 func (s *Shard) save(value []byte, valueSize int, index int) {
-	// castArr := C.CBytes(value)
-	// s.items[index] = castArr
 	s.items[index] = value
 
 	s.tail++
@@ -88,19 +81,18 @@ func (s *Shard) get(hashedKey uint64) ([]byte, error) {
 	}
 	value := s.items[item.index]
 	s.mux.RUnlock()
-	// return C.GoBytes(value, C.int(item.length)), nil
 	return value, nil
 }
 
 func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 	delete(s.hashmap, keyIndex)
-	// val := s.items[itemIndex]
-	// C.free(val)
 	delete(s.items, itemIndex)
 
-	s.policy.mux.Lock()
-	delete(s.policy.hashMap, keyIndex)
-	s.policy.mux.Unlock()
+	if s.policy != nil {
+		s.policy.mux.Lock()
+		delete(s.policy.hashMap, keyIndex)
+		s.policy.mux.Unlock()
+	}
 
 	s.tail--
 	s.currentSize -= valueSize
