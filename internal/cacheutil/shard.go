@@ -176,7 +176,7 @@ func setToFallbackShard(hasher fnv64a, shards []*Shard, exactShard *Shard, hashe
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])
 			ref := fmt.Sprintf("shard_reference_%v_val_%v", i, valueHash)
-			shard.set(hasher.sum(ref), value, TTL)
+			shard.set(hasher.Sum(ref), value, TTL)
 			exactShard.set(hashedKey, []byte(ref), TTL)
 			return nil
 		}

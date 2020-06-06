@@ -99,10 +99,22 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	defer processingRequests.Done()
 
 	if configuration.Cache {
-		response, err := cacheCluster.Get(r.URL.String())
-		if err == nil {
-			cacheutil.ServeFromCache(w, r, response)
-			return
+		if ok, _ := helpers.Contains(r.URL.String(), configuration.CacheRules); ok {
+			response, err := cacheCluster.Get(r.URL.String(), false)
+			if err == nil {
+				cacheutil.ServeFromCache(w, r, response)
+				return
+			}
+
+			hashedKey := cacheCluster.Hash.Sum(r.URL.String())
+			guard := cacheCluster.Queue.Get(hashedKey)
+			if guard != nil {
+				guard.Wait()
+				response, _ := cacheCluster.Get(r.URL.String(), false)
+				cacheutil.ServeFromCache(w, r, response)
+				return
+			}
+			cacheCluster.Queue.Set(hashedKey)
 		}
 	}
 
@@ -185,8 +197,10 @@ func proxyCacheResponse(r *http.Response) error {
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
 
 		//Here we're checking if response' url is not cached.
-		_, err := cacheCluster.Get(r.Request.URL.Path)
+		_, err := cacheCluster.Get(r.Request.URL.Path, true)
 		if err != nil {
+			hashedKey := cacheCluster.Hash.Sum(r.Request.URL.Path)
+			defer cacheCluster.Queue.Release(hashedKey)
 
 			//Create byte buffer for all response' headers and iterate over 'em
 			headerBuf := bytes.NewBuffer([]byte{})

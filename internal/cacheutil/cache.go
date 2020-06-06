@@ -24,7 +24,7 @@ const (
 
 type fnv64a struct{}
 
-func (f fnv64a) sum(key string) uint64 {
+func (f fnv64a) Sum(key string) uint64 {
 	var hash uint64 = offset64
 	for i := 0; i < len(key); i++ {
 		hash ^= uint64(key[i])
@@ -37,8 +37,9 @@ func (f fnv64a) sum(key string) uint64 {
 //CacheCluster ...
 type CacheCluster struct {
 	shards           []*Shard
-	hash             fnv64a
+	Hash             fnv64a
 	shardsAmount     int
+	Queue            *Queue
 	hits             int64
 	misses           int64
 	exceedFallback   bool
@@ -65,6 +66,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 	cache := &CacheCluster{
 		shards:         make([]*Shard, args.ShardsAmount),
 		shardsAmount:   args.ShardsAmount,
+		Queue:          NewQueue(),
 		exceedFallback: args.ExceedFallback,
 		cacheRules:     args.CacheRules,
 	}
@@ -97,7 +99,7 @@ func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
 
 //Set ...
 func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err error) {
-	hashedKey := cluster.hash.sum(key)
+	hashedKey := cluster.Hash.Sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
 
@@ -123,7 +125,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 		}
 
 		if cluster.exceedFallback {
-			if err := setToFallbackShard(cluster.hash, cluster.shards, shard, hashedKey, value, TTL); err != nil {
+			if err := setToFallbackShard(cluster.Hash, cluster.shards, shard, hashedKey, value, TTL); err != nil {
 				return err
 			}
 
@@ -147,13 +149,13 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 }
 
 //Get ...
-func (cluster *CacheCluster) Get(key string) ([]byte, error) {
-	hashedKey := cluster.hash.sum(key)
+func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
+	hashedKey := cluster.Hash.Sum(key)
 	shard := cluster.getShard(hashedKey)
 	value, err := shard.get(hashedKey)
 	if cluster.exceedFallback {
 		if strings.Contains(string(value), "shard_reference_") {
-			hashedKey = cluster.hash.sum(string(value))
+			hashedKey = cluster.Hash.Sum(string(value))
 			splittedVal := strings.Split(string(value), "shard_reference_")
 			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
 			shard = cluster.shards[index]
@@ -167,7 +169,9 @@ func (cluster *CacheCluster) Get(key string) ([]byte, error) {
 		}
 	}
 	if err != nil {
-		atomic.AddInt64(&cluster.misses, 1)
+		if trackMisses {
+			atomic.AddInt64(&cluster.misses, 1)
+		}
 	}
 	return value, err
 }
@@ -207,10 +211,10 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	}
 }
 
-func (cluster *CacheCluster) getHitMissRation() float64 {
+func (cluster *CacheCluster) getHitMissRatio() float64 {
 	hits := atomic.LoadInt64(&cluster.hits)
 	misses := atomic.LoadInt64(&cluster.misses)
-	return float64(hits / misses)
+	return float64(hits / (hits + misses))
 }
 
 //GCPercentRatio ...
