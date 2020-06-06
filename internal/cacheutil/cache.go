@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -211,10 +212,10 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	}
 }
 
-func (cluster *CacheCluster) getHitMissRatio() float64 {
-	hits := atomic.LoadInt64(&cluster.hits)
-	misses := atomic.LoadInt64(&cluster.misses)
-	return float64(hits / (hits + misses))
+func (cluster *CacheCluster) getHitRatio() float64 {
+	hits := float64(atomic.LoadInt64(&cluster.hits))
+	misses := float64(atomic.LoadInt64(&cluster.misses))
+	return (hits / math.Max(hits+misses, 1)) * 100
 }
 
 //GCPercentRatio ...

@@ -109,6 +109,9 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			hashedKey := cacheCluster.Hash.Sum(r.URL.String())
 			guard := cacheCluster.Queue.Get(hashedKey)
 			if guard != nil {
+				// Should we add some sort of timeout here? We ensure to release queue on defer in
+				// 'proxyCacheResponse' but I just wonder if there are some edge cases when queue
+				// won't be released.
 				guard.Wait()
 				response, _ := cacheCluster.Get(r.URL.String(), false)
 				cacheutil.ServeFromCache(w, r, response)
@@ -195,9 +198,10 @@ func startMetricsPolling() {
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
+		trackMiss := r.Header.Get("X-Balansir-Background-Update") == ""
 
 		//Here we're checking if response' url is not cached.
-		_, err := cacheCluster.Get(r.Request.URL.Path, true)
+		_, err := cacheCluster.Get(r.Request.URL.Path, trackMiss)
 		if err != nil {
 			hashedKey := cacheCluster.Hash.Sum(r.Request.URL.Path)
 			defer cacheCluster.Queue.Release(hashedKey)
