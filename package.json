@@ -17,16 +17,16 @@
   },
   "homepage": "https://github.com/pijng/balansir#readme",
   "dependencies": {
-    "chart.js": "^2.7.2",
-    "effector": "^20.13.4",
-    "jquery": "^3.5.0",
-    "moment": "^2.25.3"
+    "chart.js": "^2.9.3",
+    "effector": "^20.16.0",
+    "jquery": "^3.5.1",
+    "moment": "^2.26.0"
   },
   "devDependencies": {
-    "@babel/cli": "^7.8.4",
-    "@babel/core": "^7.9.0",
-    "@babel/polyfill": "^7.8.7",
-    "@babel/preset-env": "^7.9.5",
+    "@babel/cli": "^7.10.1",
+    "@babel/core": "^7.10.2",
+    "@babel/polyfill": "^7.10.1",
+    "@babel/preset-env": "^7.10.2",
     "babelify": "^10.0.0",
     "browserify": "^16.5.1"
   }
