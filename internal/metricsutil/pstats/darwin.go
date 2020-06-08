@@ -17,8 +17,7 @@ func GetRSSInfoDarwin() (int64, error) {
 		return 0, err
 	}
 
-	var cmd []string
-	cmd = []string{"-x", "-o", "rss", "-p", strconv.Itoa(pid)}
+	cmd := []string{"-x", "-o", "rss", "-p", strconv.Itoa(pid)}
 
 	out := exec.Command(bin, cmd...)
 

@@ -142,7 +142,7 @@ func getRSSUsage() int64 {
 			log.Println(err)
 		}
 	default:
-		rss, err = 0, nil
+		rss = 0
 	}
 
 	return rss
