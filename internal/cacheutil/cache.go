@@ -1,6 +1,8 @@
 package cacheutil
 
 import (
+	"balansir/internal/configutil"
+	"balansir/internal/helpers"
 	"bytes"
 	"errors"
 	"fmt"
@@ -45,13 +47,7 @@ type CacheCluster struct {
 	exceedFallback   bool
 	backgroundUpdate bool
 	updater          *Updater
-	cacheRules       []*Rule
-}
-
-//Rule ...
-type Rule struct {
-	Path string `json:"path"`
-	TTL  string `json:"ttl"`
+	cacheRules       []*configutil.Rule
 }
 
 //CacheClusterArgs ...
@@ -61,7 +57,7 @@ type CacheClusterArgs struct {
 	ExceedFallback   bool
 	CacheAlgorithm   string
 	BackgroundUpdate bool
-	CacheRules       []*Rule
+	CacheRules       []*configutil.Rule
 	TransportTimeout int
 	DialerTimeout    int
 	Port             int
@@ -228,15 +224,5 @@ func (cluster *CacheCluster) GetHitRatio() float64 {
 //GCPercentRatio ...
 func GCPercentRatio(a int, s int) int {
 	val, _ := strconv.Atoi(fmt.Sprintf("%.0f", 30*(100/(float64(a)*float64(s)))))
-	return max(val, 1)
-}
-
-func max(x int, y int) int {
-	if x > 100 {
-		return 100
-	}
-	if x < y {
-		return y
-	}
-	return x
+	return helpers.Max(val, 1)
 }
