@@ -192,13 +192,13 @@ func serversCheck() {
 }
 
 func startMetricsPolling() {
-	metricsutil.Init(rateCounter, &configuration, pool.ServerList)
+	metricsutil.Init(rateCounter, &configuration, pool.ServerList, cacheCluster)
 }
 
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
-		trackMiss := r.Header.Get("X-Balansir-Background-Update") == ""
+		trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
 
 		//Here we're checking if response' url is not cached.
 		_, err := cacheCluster.Get(r.Request.URL.Path, trackMiss)

@@ -1,6 +1,7 @@
 package metricsutil
 
 import (
+	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/metricsutil/pstats"
 	"balansir/internal/rateutil"
@@ -31,6 +32,7 @@ type Stats struct {
 	TransparentProxyMode bool        `json:"transparent_proxy_mode"`
 	Algorithm            string      `json:"balancing_algorithm"`
 	Cache                bool        `json:"cache"`
+	CacheInfo            cacheInfo   `json:"cache_info"`
 }
 
 type endpoint struct {
@@ -39,6 +41,14 @@ type endpoint struct {
 	Weight            float64 `json:"weight"`
 	ActiveConnections float64 `json:"active_connections"`
 	ServerHash        string  `json:"server_hash"`
+}
+
+type cacheInfo struct {
+	HitRatio     float64 `json:"hit_ratio"`
+	ShardsAmount int     `json:"shards_amount"`
+	ShardSize    int     `json:"shard_size_mb"`
+	Hits         int64   `json:"hits"`
+	Misses       int64   `json:"misses"`
 }
 
 //MetrictStats ...
@@ -52,12 +62,14 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 var rateCounter *rateutil.Rate
 var configuration *configutil.Configuration
 var servers []*serverutil.Server
+var cache *cacheutil.CacheCluster
 
 //Init ...
-func Init(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server) {
+func Init(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
 	rateCounter = rc
 	configuration = c
 	servers = s
+	cache = cc
 }
 
 //GetBalansirStats ...
@@ -85,6 +97,13 @@ func GetBalansirStats() Stats {
 		TransparentProxyMode: configuration.TransparentProxyMode,
 		Algorithm:            configuration.Algorithm,
 		Cache:                configuration.Cache,
+		CacheInfo: cacheInfo{
+			HitRatio:     cache.GetHitRatio(),
+			ShardsAmount: cache.ShardsAmount,
+			ShardSize:    cache.ShardMaxSize,
+			Hits:         cache.Hits,
+			Misses:       cache.Misses,
+		},
 	}
 }
 

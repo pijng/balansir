@@ -39,10 +39,11 @@ func (f fnv64a) Sum(key string) uint64 {
 type CacheCluster struct {
 	shards           []*Shard
 	Hash             fnv64a
-	shardsAmount     int
+	ShardsAmount     int
+	ShardMaxSize     int
 	Queue            *Queue
-	hits             int64
-	misses           int64
+	Hits             int64
+	Misses           int64
 	exceedFallback   bool
 	backgroundUpdate bool
 	updater          *Updater
@@ -66,7 +67,8 @@ type CacheClusterArgs struct {
 func New(args CacheClusterArgs) *CacheCluster {
 	cache := &CacheCluster{
 		shards:         make([]*Shard, args.ShardsAmount),
-		shardsAmount:   args.ShardsAmount,
+		ShardsAmount:   args.ShardsAmount,
+		ShardMaxSize:   args.MaxSize,
 		Queue:          NewQueue(),
 		exceedFallback: args.ExceedFallback,
 		cacheRules:     args.CacheRules,
@@ -95,7 +97,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 }
 
 func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
-	return cluster.shards[hashedKey&uint64(cluster.shardsAmount-1)]
+	return cluster.shards[hashedKey&uint64(cluster.ShardsAmount-1)]
 }
 
 //Set ...
@@ -164,14 +166,14 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 		}
 	}
 	if err == nil {
-		atomic.AddInt64(&cluster.hits, 1)
+		atomic.AddInt64(&cluster.Hits, 1)
 		if shard.policy != nil {
 			shard.policy.updateMetaValue(hashedKey)
 		}
 	}
 	if err != nil {
 		if trackMisses {
-			atomic.AddInt64(&cluster.misses, 1)
+			atomic.AddInt64(&cluster.Misses, 1)
 		}
 	}
 	return value, err
@@ -212,9 +214,10 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	}
 }
 
-func (cluster *CacheCluster) getHitRatio() float64 {
-	hits := float64(atomic.LoadInt64(&cluster.hits))
-	misses := float64(atomic.LoadInt64(&cluster.misses))
+//GetHitRatio ...
+func (cluster *CacheCluster) GetHitRatio() float64 {
+	hits := float64(atomic.LoadInt64(&cluster.Hits))
+	misses := float64(atomic.LoadInt64(&cluster.Misses))
 	return (hits / math.Max(hits+misses, 1)) * 100
 }
 
