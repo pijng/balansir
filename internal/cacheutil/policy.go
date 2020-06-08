@@ -1,9 +1,11 @@
 package cacheutil
 
 import (
-	"balansir/internal/helpers"
 	"errors"
+	"log"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -71,7 +73,7 @@ func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
 
 	switch meta.policyType {
 	case _MRU, _LRU:
-		duration := helpers.GetDuration(TTL)
+		duration := getDuration(TTL)
 		value = time.Now().Add(duration).Unix()
 	case _MFU, _LFU:
 		value = 0
@@ -92,7 +94,7 @@ func (meta *Meta) updateMetaValue(keyIndex uint64) {
 	case _LFU, _MFU:
 		metaHash.value++
 	case _LRU, _MRU:
-		duration := helpers.GetDuration(metaHash.ttl)
+		duration := getDuration(metaHash.ttl)
 		metaHash.value = time.Now().Add(duration).Unix()
 	}
 
@@ -118,4 +120,33 @@ func (meta *Meta) TimeBased() bool {
 		return true
 	}
 	return false
+}
+
+func getDuration(TTL string) time.Duration {
+	if TTL == "" {
+		// If TTL isn't specified then return go's max time as Unix int64 value,
+		// so in this case the stored response won't be evicted from cache at all.
+		// See https://stackoverflow.com/a/25065327
+		return 9223372036854775807
+	}
+
+	splittedTTL := strings.Split(TTL, ".")
+	val, err := strconv.Atoi(splittedTTL[0])
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	unit := splittedTTL[1]
+
+	var duration time.Duration
+	switch strings.ToLower(unit) {
+	case "second":
+		duration = time.Duration(time.Duration(val) * time.Second)
+	case "minute":
+		duration = time.Duration(time.Duration(val) * time.Minute)
+	case "hour":
+		duration = time.Duration(time.Duration(val) * time.Hour)
+	}
+
+	return duration
 }

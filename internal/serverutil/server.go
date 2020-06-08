@@ -1,7 +1,6 @@
 package serverutil
 
 import (
-	"balansir/internal/configutil"
 	"expvar"
 	"log"
 	"net"
@@ -39,9 +38,8 @@ func (server *Server) SetAlive(status bool) {
 }
 
 //CheckAlive ...
-func (server *Server) CheckAlive(configuration *configutil.Configuration) {
-	configurationTimeout := configuration.Timeout
-	timeout := time.Second * time.Duration(configurationTimeout)
+func (server *Server) CheckAlive(configTimeout int) {
+	timeout := time.Second * time.Duration(configTimeout)
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
 		server.SetAlive(false)

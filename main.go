@@ -3,27 +3,18 @@ package main
 import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
-	"balansir/internal/helpers"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/ratelimit"
 	"balansir/internal/rateutil"
-	"balansir/internal/serverutil"
-	"bytes"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
-	"expvar"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -31,17 +22,13 @@ import (
 	// _ "net/http/pprof"
 )
 
-type tunnel struct {
-	wg sync.WaitGroup
-}
-
 func roundRobin(w http.ResponseWriter, r *http.Request) {
 	index := pool.NextPool()
 	endpoint := pool.ServerList[index]
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+		w = setCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	serveDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 }
 
 func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
@@ -54,18 +41,18 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+		w = setCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	serveDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 }
 
 func leastConnections(w http.ResponseWriter, r *http.Request) {
 	endpoint := pool.GetLeastConnectedServer()
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+		w = setCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	serveDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
 	processingRequests.Done()
 }
@@ -73,10 +60,10 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	endpoint := pool.GetWeightedLeastConnectedServer()
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
+		w = setCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	serveDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
 }
 
@@ -93,13 +80,13 @@ func newServeMux() *http.ServeMux {
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
-	requestFlow.wg.Wait()
+	requestFlow.Wait()
 
 	processingRequests.Add(1)
 	defer processingRequests.Done()
 
 	if configuration.Cache {
-		if ok, _ := helpers.Contains(r.URL.String(), configuration.CacheRules); ok {
+		if ok, _ := configutil.Contains(r.URL.String(), configuration.CacheRules); ok {
 			response, err := cacheCluster.Get(r.URL.String(), false)
 			if err == nil {
 				cacheutil.ServeFromCache(w, r, response)
@@ -122,7 +109,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if configuration.RateLimit {
-		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
+		ip := returnIPFromHost(r.RemoteAddr)
 		limiter := visitors.GetVisitor(ip, &configuration)
 		if !limiter.Allow() {
 			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
@@ -144,7 +131,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if configuration.TransparentProxyMode {
-		r = helpers.AddRemoteAddrToRequest(r)
+		r = addRemoteAddrToRequest(r)
 	}
 
 	if configuration.SessionPersistence {
@@ -182,7 +169,7 @@ func serversCheck() {
 		case <-timer.C:
 			serverPoolWg.Wait()
 			for _, server := range pool.ServerList {
-				server.CheckAlive(&configuration)
+				server.CheckAlive(configuration.Timeout)
 			}
 			configuration.Mux.Lock()
 			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
@@ -193,141 +180,6 @@ func serversCheck() {
 
 func startMetricsPolling() {
 	metricsutil.Init(rateCounter, &configuration, pool.ServerList, cacheCluster)
-}
-
-func proxyCacheResponse(r *http.Response) error {
-	//Check if URL must be cached
-	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
-		trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
-
-		//Here we're checking if response' url is not cached.
-		_, err := cacheCluster.Get(r.Request.URL.Path, trackMiss)
-		if err != nil {
-			hashedKey := cacheCluster.Hash.Sum(r.Request.URL.Path)
-			defer cacheCluster.Queue.Release(hashedKey)
-
-			//Create byte buffer for all response' headers and iterate over 'em
-			headerBuf := bytes.NewBuffer([]byte{})
-
-			for key, val := range r.Header {
-				//Write header's key to buffer
-				headerBuf.Write([]byte(key))
-				//Add delimeter so we can split header key later
-				headerBuf.Write([]byte(";-;"))
-				//Create byte buffer for header value
-				headerValueBuf := bytes.NewBuffer([]byte{})
-				//Header value is a string slice, so iterate over it to correctly write it to a buffer
-				for _, v := range val {
-					headerValueBuf.Write([]byte(v))
-				}
-				//Write complete header value to headers buffer
-				headerBuf.Write(headerValueBuf.Bytes())
-				//Add another delimeter so we can split headers out of each other
-				headerBuf.Write([]byte(";--;"))
-			}
-
-			//Read response body, write it to buffer
-			b, _ := ioutil.ReadAll(r.Body)
-			bodyBuf := bytes.NewBuffer(b)
-
-			//Reassign response body
-			r.Body = ioutil.NopCloser(bodyBuf)
-
-			//Create new buffer. Write our headers and body
-			respBuf := bytes.NewBuffer([]byte{})
-			respBuf.Write(headerBuf.Bytes())
-			respBuf.Write(bodyBuf.Bytes())
-
-			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
-			if err != nil {
-				log.Println(err)
-			}
-		}
-	}
-	return nil
-}
-
-func fillConfiguration(file []byte, config *configutil.Configuration) error {
-	requestFlow.wg.Add(1)
-
-	processingRequests.Wait()
-	defer requestFlow.wg.Done()
-
-	config.Mux.Lock()
-	defer config.Mux.Unlock()
-
-	serverPoolWg.Add(1)
-	if err := json.Unmarshal(file, &config); err != nil {
-		return err
-	}
-	serverPoolWg.Done()
-
-	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
-		var serverHash string
-		serverPoolWg.Add(len(configuration.ServerList))
-
-		pool.ClearPool()
-
-		for index, server := range configuration.ServerList {
-			switch configuration.Algorithm {
-			case "weighted-round-robin", "weighted-least-connections":
-				if server.Weight < 0 {
-					log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
-				} else if server.Weight > 1 {
-					log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
-				}
-			}
-
-			serverURL, err := url.Parse(configuration.Protocol + "://" + strings.TrimSpace(server.URL))
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			proxy := httputil.NewSingleHostReverseProxy(serverURL)
-			proxy.ErrorHandler = helpers.ProxyErrorHandler
-			proxy.Transport = &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				DialContext: (&net.Dialer{
-					Timeout:   time.Duration(configuration.WriteTimeout) * time.Second,
-					KeepAlive: time.Duration(configuration.ReadTimeout) * time.Second,
-				}).DialContext,
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 100,
-			}
-
-			if configuration.Cache {
-				proxy.ModifyResponse = proxyCacheResponse
-			}
-
-			connections := expvar.NewFloat(helpers.RandomStringBytes(5))
-
-			if configuration.SessionPersistence {
-				md := md5.Sum([]byte(serverURL.String()))
-				serverHash = hex.EncodeToString(md[:16])
-			}
-
-			pool.AddServer(&serverutil.Server{
-				URL:               serverURL,
-				Weight:            server.Weight,
-				ActiveConnections: connections,
-				Index:             index,
-				Alive:             true,
-				Proxy:             proxy,
-				ServerHash:        serverHash,
-			})
-			serverPoolWg.Done()
-		}
-
-		switch configuration.Algorithm {
-		case "weighted-round-robin", "weighted-least-connections":
-			nonZeroServers := pool.ExcludeZeroWeightServers()
-			if len(nonZeroServers) <= 0 {
-				log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
-			}
-		}
-	}
-
-	return nil
 }
 
 func configWatch() {
@@ -344,7 +196,16 @@ func configWatch() {
 		fileHashNext = hex.EncodeToString(md[:16])
 		if fileHash != fileHashNext {
 			fileHash = fileHashNext
-			err := fillConfiguration(file, &configuration)
+			args := configutil.FillConfigurationArgs{
+				File:               file,
+				Config:             &configuration,
+				Cluster:            cacheCluster,
+				RequestFlow:        &requestFlow,
+				ProcessingRequests: &processingRequests,
+				ServerPoolWg:       &serverPoolWg,
+				ServerPoolHash:     &serverPoolHash,
+			}
+			err := configutil.FillConfiguration(args)
 			if err != nil {
 				log.Fatalf(`Error reading configuration: %s`, err)
 			}
@@ -399,7 +260,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 	go func() {
 		server := http.Server{
 			Addr:         ":" + strconv.Itoa(configuration.Port),
-			Handler:      http.HandlerFunc(helpers.RedirectTLS),
+			Handler:      http.HandlerFunc(redirectTLS),
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
@@ -414,7 +275,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 var configuration configutil.Configuration
 var pool poolutil.ServerPool
 var serverPoolWg sync.WaitGroup
-var requestFlow tunnel
+var requestFlow sync.WaitGroup
 var processingRequests sync.WaitGroup
 var serverPoolHash string
 var visitors *ratelimit.Limiter
@@ -427,7 +288,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := fillConfiguration(file, &configuration); err != nil {
+	args := configutil.FillConfigurationArgs{
+		File:               file,
+		Config:             &configuration,
+		Cluster:            cacheCluster,
+		RequestFlow:        &requestFlow,
+		ProcessingRequests: &processingRequests,
+		ServerPoolWg:       &serverPoolWg,
+		ServerPoolHash:     &serverPoolHash,
+	}
+	if err := configutil.FillConfiguration(args); err != nil {
 		log.Fatalf(`Error reading configuration: %s`, err)
 	}
 
