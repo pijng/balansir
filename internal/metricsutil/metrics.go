@@ -12,11 +12,9 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"syscall"
 	"time"
 )
 
-var memR syscall.Rusage
 var mem runtime.MemStats
 
 //Stats ...
@@ -56,7 +54,9 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 	val := GetBalansirStats()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(val)
+	if err := json.NewEncoder(w).Encode(val); err != nil {
+		log.Println(err)
+	}
 }
 
 var rateCounter *rateutil.Rate
@@ -114,7 +114,10 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	tmpl := template.Must(template.ParseFiles(wd + "/content/templates/index.html"))
-	tmpl.Execute(w, nil)
+	err = tmpl.Execute(w, nil)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func getRSSUsage() int64 {
@@ -131,12 +134,12 @@ func getRSSUsage() int64 {
 	case "darwin":
 		rss, err = pstats.GetRSSInfoDarwin()
 		if err != nil {
-			//check for error
+			log.Println(err)
 		}
 	case "linux":
 		rss, err = pstats.GetRSSInfoLinux()
 		if err != nil {
-			//check for error
+			log.Println(err)
 		}
 	default:
 		rss, err = 0, nil

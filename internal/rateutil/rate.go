@@ -2,14 +2,12 @@ package rateutil
 
 import (
 	"math"
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
 //Rate ...
 type Rate struct {
-	mux         sync.RWMutex
 	ratemap     []int64
 	responsemap []int64
 }

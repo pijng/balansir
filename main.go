@@ -31,10 +31,6 @@ import (
 	// _ "net/http/pprof"
 )
 
-type tunnel struct {
-	wg sync.WaitGroup
-}
-
 func roundRobin(w http.ResponseWriter, r *http.Request) {
 	index := pool.NextPool()
 	endpoint := pool.ServerList[index]

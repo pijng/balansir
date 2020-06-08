@@ -9,14 +9,11 @@ import (
 )
 
 const (
-	valueEntrySize = 4
-	indexEntrySize = 4
-	keyEntrySize   = 8
-	_LRU           = "LRU"
-	_MRU           = "MRU"
-	_LFU           = "LFU"
-	_MFU           = "MFU"
-	_FiFo          = "FIFO"
+	_LRU  = "LRU"
+	_MRU  = "MRU"
+	_LFU  = "LFU"
+	_MFU  = "MFU"
+	_FiFo = "FIFO"
 )
 
 //Meta ...

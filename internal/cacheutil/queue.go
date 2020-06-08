@@ -46,7 +46,7 @@ func (q *Queue) Get(hashedKey uint64) *sync.WaitGroup {
 	q.mux.Lock()
 	defer q.mux.Unlock()
 
-	guard, _ := q.hashMap[hashedKey]
+	guard := q.hashMap[hashedKey]
 
 	return guard
 }

@@ -34,7 +34,7 @@ func GetRSSInfoDarwin() (int64, error) {
 		return 0, err
 	}
 
-	line := strings.Split(string(buf.Bytes()), "\n")
+	line := strings.Split(buf.String(), "\n")
 	trimdRss := strings.TrimSpace(strings.Join(line[1:], " "))
 	rss, _ := strconv.Atoi(trimdRss)
 
