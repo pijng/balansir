@@ -48,7 +48,6 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
-		processingRequests.Done()
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -67,7 +66,6 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 	endpoint.ActiveConnections.Add(1)
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
 	endpoint.ActiveConnections.Add(-1)
-	processingRequests.Done()
 }
 
 func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +91,7 @@ func newServeMux() *http.ServeMux {
 }
 
 func loadBalance(w http.ResponseWriter, r *http.Request) {
-	requestFlow.wg.Wait()
+	configurationGuard.Wait()
 
 	processingRequests.Add(1)
 	defer processingRequests.Done()
@@ -180,7 +178,7 @@ func serversCheck() {
 	for {
 		select {
 		case <-timer.C:
-			serverPoolWg.Wait()
+			serverPoolGuard.Wait()
 			for _, server := range pool.ServerList {
 				server.CheckAlive(&configuration)
 			}
@@ -248,23 +246,23 @@ func proxyCacheResponse(r *http.Response) error {
 }
 
 func fillConfiguration(file []byte, config *configutil.Configuration) error {
-	requestFlow.wg.Add(1)
+	configurationGuard.Add(1)
+	defer configurationGuard.Done()
 
 	processingRequests.Wait()
-	defer requestFlow.wg.Done()
 
 	config.Mux.Lock()
 	defer config.Mux.Unlock()
 
-	serverPoolWg.Add(1)
+	serverPoolGuard.Add(1)
+	defer serverPoolGuard.Done()
 	if err := json.Unmarshal(file, &config); err != nil {
 		return err
 	}
-	serverPoolWg.Done()
 
 	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
 		var serverHash string
-		serverPoolWg.Add(len(configuration.ServerList))
+		serverPoolGuard.Add(len(configuration.ServerList))
 
 		pool.ClearPool()
 
@@ -315,7 +313,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) error {
 				Proxy:             proxy,
 				ServerHash:        serverHash,
 			})
-			serverPoolWg.Done()
+			serverPoolGuard.Done()
 		}
 
 		switch configuration.Algorithm {
@@ -413,8 +411,8 @@ func listenAndServeTLSWithSelfSignedCerts() {
 
 var configuration configutil.Configuration
 var pool poolutil.ServerPool
-var serverPoolWg sync.WaitGroup
-var requestFlow tunnel
+var serverPoolGuard sync.WaitGroup
+var configurationGuard sync.WaitGroup
 var processingRequests sync.WaitGroup
 var serverPoolHash string
 var visitors *ratelimit.Limiter
