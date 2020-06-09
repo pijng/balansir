@@ -37,8 +37,10 @@ func (q *Queue) Release(hashedKey uint64) {
 	q.mux.Lock()
 	defer q.mux.Unlock()
 
-	q.hashMap[hashedKey].Done()
-	delete(q.hashMap, hashedKey)
+	if wg, ok := q.hashMap[hashedKey]; ok {
+		wg.Done()
+		delete(q.hashMap, hashedKey)
+	}
 }
 
 //Get ...

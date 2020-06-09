@@ -102,16 +102,30 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 			hashedKey := cacheCluster.Hash.Sum(r.URL.String())
 			guard := cacheCluster.Queue.Get(hashedKey)
-			if guard != nil {
-				// Should we add some sort of timeout here? We ensure to release queue on defer in
-				// 'proxyCacheResponse' but I just wonder if there are some edge cases when queue
-				// won't be released.
+			//If there is no queue for a given key – create queue and set release on timeout.
+			//Timeout should prevent situation when release won't be triggered in proxyCacheResponse
+			//due to server timeouts
+			if guard == nil {
+				cacheCluster.Queue.Set(hashedKey)
+				go func() {
+					for {
+						select {
+						case <-time.After(time.Duration(configuration.WriteTimeout) * time.Second):
+							cacheCluster.Queue.Release(hashedKey)
+							return
+						}
+					}
+				}()
+			} else {
+				//If there is a queue for a given key – wait for it to be released and get the response
+				//from the cache. Optimistically we don't need to check the returned error in this case,
+				//because the only error is a "key not found" yet we immediatelly grab the value after
+				//cache set.
 				guard.Wait()
 				response, _ := cacheCluster.Get(r.URL.String(), false)
 				cacheutil.ServeFromCache(w, r, response)
 				return
 			}
-			cacheCluster.Queue.Set(hashedKey)
 		}
 	}
 
@@ -256,7 +270,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) error {
 		return err
 	}
 
-	if helpers.ServerPoolsEquals(&serverPoolHash, serverPoolHash, configuration.ServerList) {
+	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
 		var serverHash string
 		serverPoolGuard.Add(len(configuration.ServerList))
 

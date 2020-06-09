@@ -71,7 +71,7 @@ func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *conf
 }
 
 //ServerPoolsEquals ...
-func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool []*configutil.Endpoint) bool {
+func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoint) bool {
 	var sumOfServerHash string
 	for _, server := range incomingPool {
 		serialized, _ := json.Marshal(server)
@@ -79,11 +79,11 @@ func ServerPoolsEquals(serverPoolHash *string, prevPoolHash string, incomingPool
 	}
 	md := md5.Sum([]byte(sumOfServerHash))
 	poolHash := hex.EncodeToString(md[:16])
-	if prevPoolHash == poolHash {
-		return false
+	if *serverPoolHash == poolHash {
+		return true
 	}
 	*serverPoolHash = poolHash
-	return true
+	return false
 }
 
 //ServeDistributor ...
