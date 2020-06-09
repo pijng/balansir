@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
-	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
@@ -39,16 +38,6 @@ func ReturnIPFromHost(host string) string {
 //RedirectTLS ...
 func RedirectTLS(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://"+ReturnPortFromHost(r.Host), http.StatusMovedPermanently)
-}
-
-//RandomStringBytes ...
-func RandomStringBytes(n int) string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
-	}
-	return string(b)
 }
 
 //AddRemoteAddrToRequest ...
@@ -100,20 +89,6 @@ func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseW
 
 	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
-}
-
-//ProxyErrorHandler ...
-func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	if err != nil {
-		// Suppress `context canceled` error.
-		// It may occur when client cancels the request with fast refresh
-		// or by closing the connection. This error isn't informative at all and it'll
-		// just junk the log around.
-		if err.Error() == "context canceled" {
-		} else {
-			log.Printf(`proxy error: %s`, err.Error())
-		}
-	}
 }
 
 //Max ...

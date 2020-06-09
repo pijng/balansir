@@ -8,22 +8,16 @@ import (
 	"balansir/internal/poolutil"
 	"balansir/internal/ratelimit"
 	"balansir/internal/rateutil"
-	"balansir/internal/serverutil"
 	"bytes"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
-	"expvar"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -190,7 +184,7 @@ func serversCheck() {
 		case <-timer.C:
 			serverPoolGuard.Wait()
 			for _, server := range pool.ServerList {
-				server.CheckAlive(&configuration)
+				server.CheckAlive(&configuration.Timeout)
 			}
 			configuration.Mux.Lock()
 			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
@@ -271,59 +265,11 @@ func fillConfiguration(file []byte, config *configutil.Configuration) error {
 	}
 
 	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
-		var serverHash string
-		serverPoolGuard.Add(len(configuration.ServerList))
 
-		pool.ClearPool()
+		configutil.RedefineServerPool(&configuration, &serverPoolGuard, &pool)
 
-		for index, server := range configuration.ServerList {
-			switch configuration.Algorithm {
-			case "weighted-round-robin", "weighted-least-connections":
-				if server.Weight < 0 {
-					log.Fatalf(`Negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one.`, server.Weight, server.URL)
-				} else if server.Weight > 1 {
-					log.Fatalf(`Weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"].`, server.Weight, server.URL)
-				}
-			}
-
-			serverURL, err := url.Parse(configuration.Protocol + "://" + strings.TrimSpace(server.URL))
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			proxy := httputil.NewSingleHostReverseProxy(serverURL)
-			proxy.ErrorHandler = helpers.ProxyErrorHandler
-			proxy.Transport = &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				DialContext: (&net.Dialer{
-					Timeout:   time.Duration(configuration.WriteTimeout) * time.Second,
-					KeepAlive: time.Duration(configuration.ReadTimeout) * time.Second,
-				}).DialContext,
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 100,
-			}
-
-			if configuration.Cache {
-				proxy.ModifyResponse = proxyCacheResponse
-			}
-
-			connections := expvar.NewFloat(helpers.RandomStringBytes(5))
-
-			if configuration.SessionPersistence {
-				md := md5.Sum([]byte(serverURL.String()))
-				serverHash = hex.EncodeToString(md[:16])
-			}
-
-			pool.AddServer(&serverutil.Server{
-				URL:               serverURL,
-				Weight:            server.Weight,
-				ActiveConnections: connections,
-				Index:             index,
-				Alive:             true,
-				Proxy:             proxy,
-				ServerHash:        serverHash,
-			})
-			serverPoolGuard.Done()
+		for _, server := range pool.ServerList {
+			server.Proxy.ModifyResponse = proxyCacheResponse
 		}
 
 		switch configuration.Algorithm {
