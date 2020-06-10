@@ -2,7 +2,6 @@ package cacheutil
 
 import (
 	"balansir/internal/configutil"
-	"balansir/internal/helpers"
 	"bytes"
 	"errors"
 	"fmt"
@@ -224,5 +223,15 @@ func (cluster *CacheCluster) GetHitRatio() float64 {
 //GCPercentRatio ...
 func GCPercentRatio(a int, s int) int {
 	val, _ := strconv.Atoi(fmt.Sprintf("%.0f", 30*(100/(float64(a)*float64(s)))))
-	return helpers.Max(val, 1)
+	return max(val, 1)
+}
+
+func max(x int, y int) int {
+	if x > 100 {
+		return 100
+	}
+	if x < y {
+		return y
+	}
+	return x
 }

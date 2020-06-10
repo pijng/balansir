@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
-	// _ "net/http/pprof"
 )
 
 func roundRobin(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +138,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("X-Balansir-Background-Update") == "" {
+	if key := r.Context().Value("background-update"); key == nil {
 		rateCounter.RateIncrement()
 		rtStart := time.Now()
 		defer rateCounter.ResponseCount(rtStart)
@@ -200,7 +199,7 @@ func startMetricsPolling() {
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
-		trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
+		trackMiss := r.Request.Context().Value("background-update") != nil
 
 		//Here we're checking if response' url is not cached.
 		_, err := cacheCluster.Get(r.Request.URL.Path, trackMiss)
@@ -265,7 +264,6 @@ func fillConfiguration(file []byte, config *configutil.Configuration) error {
 	}
 
 	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
-
 		configutil.RedefineServerPool(&configuration, &serverPoolGuard, &pool)
 
 		for _, server := range pool.ServerList {
@@ -422,9 +420,6 @@ func main() {
 			listenAndServeTLSWithSelfSignedCerts()
 		}
 	} else {
-		// go func() {
-		// 	log.Println(http.ListenAndServe("localhost:8080", nil))
-		// }()
 		server := http.Server{
 			Addr:         ":" + strconv.Itoa(configuration.Port),
 			Handler:      newServeMux(),

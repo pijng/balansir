@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -67,11 +66,11 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 		sumOfServerHash += string(serialized)
 	}
 	md := md5.Sum([]byte(sumOfServerHash))
-	poolHash := hex.EncodeToString(md[:16])
-	if *serverPoolHash == poolHash {
+	newPoolHash := hex.EncodeToString(md[:16])
+	if *serverPoolHash == newPoolHash {
 		return true
 	}
-	*serverPoolHash = poolHash
+	*serverPoolHash = newPoolHash
 	return false
 }
 
@@ -91,17 +90,6 @@ func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseW
 	endpoint.Proxy.ServeHTTP(w, r)
 }
 
-//Max ...
-func Max(x int, y int) int {
-	if x > 100 {
-		return 100
-	}
-	if x < y {
-		return y
-	}
-	return x
-}
-
 //Contains ...
 func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
 	for _, rule := range prefixes {
@@ -110,34 +98,4 @@ func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
 		}
 	}
 	return false, ""
-}
-
-//GetDuration ...
-func GetDuration(TTL string) time.Duration {
-	if TTL == "" {
-		// If TTL isn't specified then return go's max time as Unix int64 value,
-		// so in this case the stored response won't be evicted from cache at all.
-		// See https://stackoverflow.com/a/25065327
-		return 9223372036854775807
-	}
-
-	splittedTTL := strings.Split(TTL, ".")
-	val, err := strconv.Atoi(splittedTTL[0])
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	unit := splittedTTL[1]
-
-	var duration time.Duration
-	switch strings.ToLower(unit) {
-	case "second":
-		duration = time.Duration(time.Duration(val) * time.Second)
-	case "minute":
-		duration = time.Duration(time.Duration(val) * time.Minute)
-	case "hour":
-		duration = time.Duration(time.Duration(val) * time.Hour)
-	}
-
-	return duration
 }

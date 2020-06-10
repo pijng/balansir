@@ -1,12 +1,15 @@
 package cacheutil
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 )
+
+type ctxKey string
 
 //Updater ...
 type Updater struct {
@@ -36,8 +39,11 @@ func (u *Updater) InvalidateCachedResponse(url string, mux *sync.RWMutex) error 
 	mux.Unlock()
 	defer mux.Lock()
 
+	var key ctxKey
+	key = "background-update"
 	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%v%v", u.port, url), nil)
-	req.Header.Set("X-Balansir-Background-Update", "true")
+	ctx := context.WithValue(req.Context(), key, true)
+	req = req.WithContext(ctx)
 	_, err := u.client.Do(req)
 	if err != nil {
 		return err
