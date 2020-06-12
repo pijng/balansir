@@ -16,7 +16,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -72,7 +71,7 @@ func newServeMux() *http.ServeMux {
 	sm.HandleFunc("/", loadBalance)
 	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 
-	startMetricsPolling()
+	metricsPolling()
 	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 
 	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
@@ -192,8 +191,8 @@ func serversCheck() {
 	}
 }
 
-func startMetricsPolling() {
-	metricsutil.Init(rateCounter, &configuration, pool.ServerList, cacheCluster)
+func metricsPolling() {
+	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
 }
 
 func proxyCacheResponse(r *http.Response) error {
@@ -248,7 +247,7 @@ func proxyCacheResponse(r *http.Response) error {
 	return nil
 }
 
-func fillConfiguration(file []byte, config *configutil.Configuration) error {
+func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 	configurationGuard.Add(1)
 	defer configurationGuard.Done()
 
@@ -259,27 +258,53 @@ func fillConfiguration(file []byte, config *configutil.Configuration) error {
 
 	serverPoolGuard.Add(1)
 	defer serverPoolGuard.Done()
+
+	var errors []error
 	if err := json.Unmarshal(file, &config); err != nil {
-		return err
+		errors = append(errors, err)
+		return errors
 	}
 
 	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
-		configutil.RedefineServerPool(&configuration, &serverPoolGuard, &pool)
-
-		for _, server := range pool.ServerList {
-			server.Proxy.ModifyResponse = proxyCacheResponse
+		newPool, err := poolutil.RedefineServerPool(&configuration, &serverPoolGuard)
+		if err != nil {
+			errors = append(errors, err)
 		}
-
-		switch configuration.Algorithm {
-		case "weighted-round-robin", "weighted-least-connections":
-			nonZeroServers := pool.ExcludeZeroWeightServers()
-			if len(nonZeroServers) <= 0 {
-				log.Fatalf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight.`)
+		if newPool != nil {
+			pool = newPool
+			for _, server := range pool.ServerList {
+				server.Proxy.ModifyResponse = proxyCacheResponse
+				server.Proxy.ErrorHandler = helpers.ProxyErrorHandler
 			}
 		}
 	}
 
-	return nil
+	if configuration.Cache {
+		args := cacheutil.CacheClusterArgs{
+			ShardsAmount:     configuration.CacheShardsAmount,
+			MaxSize:          configuration.CacheShardMaxSizeMb,
+			ExceedFallback:   configuration.CacheShardExceedFallback,
+			CacheAlgorithm:   configuration.CacheAlgorithm,
+			BackgroundUpdate: configuration.CacheBackgroundUpdate,
+			TransportTimeout: configuration.WriteTimeout,
+			DialerTimeout:    configuration.ReadTimeout,
+			CacheRules:       configuration.CacheRules,
+			Port:             configuration.Port,
+		}
+
+		if !helpers.CacheEquals(&cacheHash, &args) {
+			newCacheCluster, err := cacheutil.RedefineCache(&args, cacheCluster)
+			if err != nil {
+				errors = append(errors, err)
+			}
+			if newCacheCluster != nil {
+				cacheCluster = newCacheCluster
+			}
+		}
+	}
+
+	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
+	return errors
 }
 
 func configWatch() {
@@ -298,7 +323,7 @@ func configWatch() {
 			fileHash = fileHashNext
 			err := fillConfiguration(file, &configuration)
 			if err != nil {
-				log.Fatalf(`Error reading configuration: %s`, err)
+				log.Println(err)
 			}
 			log.Println("Configuration file changes applied to Balansir")
 		}
@@ -329,7 +354,7 @@ func listenAndServeTLSWithAutocert() {
 		http.HandleFunc("/", loadBalance)
 		http.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 
-		startMetricsPolling()
+		metricsPolling()
 		http.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 
 		err := http.ListenAndServe(
@@ -364,11 +389,12 @@ func listenAndServeTLSWithSelfSignedCerts() {
 }
 
 var configuration configutil.Configuration
-var pool poolutil.ServerPool
+var pool *poolutil.ServerPool
 var serverPoolGuard sync.WaitGroup
 var configurationGuard sync.WaitGroup
 var processingRequests sync.WaitGroup
 var serverPoolHash string
+var cacheHash string
 var visitors *ratelimit.Limiter
 var cacheCluster *cacheutil.CacheCluster
 var rateCounter *rateutil.Rate
@@ -380,7 +406,7 @@ func main() {
 	}
 
 	if err := fillConfiguration(file, &configuration); err != nil {
-		log.Fatalf(`Error reading configuration: %s`, err)
+		log.Println(err)
 	}
 
 	go serversCheck()
@@ -390,24 +416,6 @@ func main() {
 
 	if configuration.RateLimit {
 		go visitors.CleanOldVisitors()
-	}
-
-	if configuration.Cache {
-		args := cacheutil.CacheClusterArgs{
-			ShardsAmount:     configuration.CacheShardsAmount,
-			MaxSize:          configuration.CacheShardMaxSizeMb,
-			ExceedFallback:   configuration.CacheShardExceedFallback,
-			CacheAlgorithm:   configuration.CacheAlgorithm,
-			BackgroundUpdate: configuration.CacheBackgroundUpdate,
-			TransportTimeout: configuration.WriteTimeout,
-			DialerTimeout:    configuration.ReadTimeout,
-			CacheRules:       configuration.CacheRules,
-			Port:             configuration.Port,
-		}
-
-		cacheCluster = cacheutil.New(args)
-		debug.SetGCPercent(cacheutil.GCPercentRatio(configuration.CacheShardsAmount, configuration.CacheShardMaxSizeMb))
-		log.Print("Cache enabled")
 	}
 
 	rateCounter = rateutil.NewRateCounter()

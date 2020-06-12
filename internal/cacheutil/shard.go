@@ -1,7 +1,6 @@
 package cacheutil
 
 import (
-	"balansir/internal/configutil"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
@@ -31,10 +30,11 @@ type shardItem struct {
 //CreateShard ...
 func CreateShard(maxSize int, cacheAlgorithm string) *Shard {
 	s := &Shard{
-		hashmap: make(map[uint64]shardItem),
-		items:   make(map[int][]byte),
-		tail:    0,
-		maxSize: maxSize,
+		hashmap:     make(map[uint64]shardItem),
+		items:       make(map[int][]byte),
+		tail:        0,
+		maxSize:     maxSize,
+		currentSize: 0,
 	}
 
 	if cacheAlgorithm != "" {
@@ -97,7 +97,7 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 	s.currentSize -= valueSize
 }
 
-func (s *Shard) update(timestamp int64, updater *Updater, rules []*configutil.Rule) {
+func (s *Shard) update(timestamp int64, updater *Updater) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	if len(s.hashmap) > 0 {

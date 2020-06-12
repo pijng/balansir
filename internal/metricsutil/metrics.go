@@ -17,6 +17,13 @@ import (
 
 var mem runtime.MemStats
 
+type objects struct {
+	rateCounter   *rateutil.Rate
+	configuration *configutil.Configuration
+	servers       []*serverutil.Server
+	cache         *cacheutil.CacheCluster
+}
+
 //Stats ...
 type Stats struct {
 	Timestamp            int64       `json:"timestamp"`
@@ -59,24 +66,23 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var rateCounter *rateutil.Rate
-var configuration *configutil.Configuration
-var servers []*serverutil.Server
-var cache *cacheutil.CacheCluster
+var metrics *objects
 
-//Init ...
-func Init(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
-	rateCounter = rc
-	configuration = c
-	servers = s
-	cache = cc
+//AssignMetricsObjects ...
+func AssignMetricsObjects(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
+	metrics = &objects{
+		rateCounter:   rc,
+		configuration: c,
+		servers:       s,
+		cache:         cc,
+	}
 }
 
 //GetBalansirStats ...
 func GetBalansirStats() Stats {
 	runtime.ReadMemStats(&mem)
-	endpoints := make([]*endpoint, len(servers))
-	for i, server := range servers {
+	endpoints := make([]*endpoint, len(metrics.servers))
+	for i, server := range metrics.servers {
 		endpoints[i] = &endpoint{
 			server.URL.String(),
 			server.Alive,
@@ -87,22 +93,22 @@ func GetBalansirStats() Stats {
 	}
 	return Stats{
 		Timestamp:            time.Now().Unix() * 1000,
-		RequestsPerSecond:    rateCounter.RateValue(),
-		AverageResponseTime:  rateCounter.ResponseValue(),
+		RequestsPerSecond:    metrics.rateCounter.RateValue(),
+		AverageResponseTime:  metrics.rateCounter.ResponseValue(),
 		MemoryUsage:          getRSSUsage(),
 		ErrorsCount:          getErrorsCount(),
-		Port:                 configuration.Port,
-		TLSPort:              configuration.TLSPort,
+		Port:                 metrics.configuration.Port,
+		TLSPort:              metrics.configuration.TLSPort,
 		Endpoints:            endpoints,
-		TransparentProxyMode: configuration.TransparentProxyMode,
-		Algorithm:            configuration.Algorithm,
-		Cache:                configuration.Cache,
+		TransparentProxyMode: metrics.configuration.TransparentProxyMode,
+		Algorithm:            metrics.configuration.Algorithm,
+		Cache:                metrics.configuration.Cache,
 		CacheInfo: cacheInfo{
-			HitRatio:     cache.GetHitRatio(),
-			ShardsAmount: cache.ShardsAmount,
-			ShardSize:    cache.ShardMaxSize,
-			Hits:         cache.Hits,
-			Misses:       cache.Misses,
+			HitRatio:     metrics.cache.GetHitRatio(),
+			ShardsAmount: metrics.cache.ShardsAmount,
+			ShardSize:    metrics.cache.ShardMaxSize,
+			Hits:         metrics.cache.Hits,
+			Misses:       metrics.cache.Misses,
 		},
 	}
 }

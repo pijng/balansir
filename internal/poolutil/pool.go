@@ -1,11 +1,20 @@
 package poolutil
 
 import (
+	"balansir/internal/configutil"
 	"balansir/internal/serverutil"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
+	"expvar"
 	"fmt"
 	"math/rand"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -144,4 +153,75 @@ func (pool *ServerPool) NextPool() int {
 		return pool.NextPool()
 	}
 	return current
+}
+
+//RedefineServerPool ...
+func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard *sync.WaitGroup) (*ServerPool, error) {
+	var serverHash string
+	serverPoolGuard.Add(len(configuration.ServerList))
+
+	newPool := &ServerPool{}
+	for index, server := range configuration.ServerList {
+		switch configuration.Algorithm {
+		case "weighted-round-robin", "weighted-least-connections":
+			if server.Weight < 0 {
+				return nil, fmt.Errorf(`negative weight (%v) is specified for (%s) endpoint in config["server_list"]. Please set it's the weight to 0 if you want to mark it as dead one`, server.Weight, server.URL)
+			} else if server.Weight > 1 {
+				return nil, fmt.Errorf(`weight can't be greater than 1. You specified (%v) weight for (%s) endpoint in config["server_list"]`, server.Weight, server.URL)
+			}
+		}
+
+		serverURL, err := url.Parse(configuration.Protocol + "://" + strings.TrimSpace(server.URL))
+		if err != nil {
+			return nil, err
+		}
+
+		proxy := httputil.NewSingleHostReverseProxy(serverURL)
+		proxy.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   time.Duration(configuration.WriteTimeout) * time.Second,
+				KeepAlive: time.Duration(configuration.ReadTimeout) * time.Second,
+			}).DialContext,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+		}
+
+		connections := expvar.NewFloat(randomStringBytes(5))
+
+		if configuration.SessionPersistence {
+			md := md5.Sum([]byte(serverURL.String()))
+			serverHash = hex.EncodeToString(md[:16])
+		}
+
+		newPool.AddServer(&serverutil.Server{
+			URL:               serverURL,
+			Weight:            server.Weight,
+			ActiveConnections: connections,
+			Index:             index,
+			Alive:             true,
+			Proxy:             proxy,
+			ServerHash:        serverHash,
+		})
+		serverPoolGuard.Done()
+	}
+
+	switch configuration.Algorithm {
+	case "weighted-round-robin", "weighted-least-connections":
+		nonZeroServers := newPool.ExcludeZeroWeightServers()
+		if len(nonZeroServers) <= 0 {
+			return nil, fmt.Errorf(`0 weight is specified for all your endpoints in config["server_list"]. Please consider adding at least one endpoint with non-zero weight`)
+		}
+	}
+
+	return newPool, nil
+}
+
+func randomStringBytes(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
+	}
+	return string(b)
 }

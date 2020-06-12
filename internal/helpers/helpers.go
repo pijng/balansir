@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/gziputil"
 	"balansir/internal/serverutil"
@@ -74,6 +75,18 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 	return false
 }
 
+//CacheEquals ...
+func CacheEquals(cacheHash *string, incomingArgs *cacheutil.CacheClusterArgs) bool {
+	serialized, _ := json.Marshal(incomingArgs)
+	md := md5.Sum(serialized)
+	newCacheHash := hex.EncodeToString(md[:16])
+	if *cacheHash == newCacheHash {
+		return true
+	}
+	*cacheHash = newCacheHash
+	return false
+}
+
 //ServeDistributor ...
 func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
 	if gzipEnabled {
@@ -98,4 +111,18 @@ func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
 		}
 	}
 	return false, ""
+}
+
+//ProxyErrorHandler ...
+func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	if err != nil {
+		// Suppress `context canceled` error.
+		// It may occur when client cancels the request with fast refresh
+		// or by closing the connection. This error isn't informative at all and it'll
+		// just junk the log around.
+		if err.Error() == "context canceled" {
+		} else {
+			log.Printf(`proxy error: %s`, err.Error())
+		}
+	}
 }

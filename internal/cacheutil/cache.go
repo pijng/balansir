@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -180,7 +181,7 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 
 func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
-		shard.update(timestamp, cluster.updater, cluster.cacheRules)
+		shard.update(timestamp, cluster.updater)
 	}
 }
 
@@ -218,6 +219,83 @@ func (cluster *CacheCluster) GetHitRatio() float64 {
 	hits := float64(atomic.LoadInt64(&cluster.Hits))
 	misses := float64(atomic.LoadInt64(&cluster.Misses))
 	return (hits / math.Max(hits+misses, 1)) * 100
+}
+
+//RedefineCache ...
+func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster, error) {
+	if cluster == nil {
+		cacheCluster := New(*args)
+		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
+		log.Print("Cache enabled")
+		return cacheCluster, nil
+	}
+
+	newCluster := &CacheCluster{
+		Hits:             cluster.Hits,
+		Misses:           cluster.Misses,
+		exceedFallback:   args.ExceedFallback,
+		backgroundUpdate: args.BackgroundUpdate,
+		cacheRules:       args.CacheRules,
+		Queue:            cluster.Queue,
+		updater:          cluster.updater,
+	}
+
+	//increase shards amount
+	if cluster.ShardsAmount < args.ShardsAmount {
+		for i := 0; i < args.ShardsAmount-cluster.ShardsAmount; i++ {
+			shard := CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
+			newCluster.shards = append(newCluster.shards, shard)
+		}
+		newCluster.shards = append(newCluster.shards, cluster.shards...)
+
+		//reduce shards amount
+	} else if cluster.ShardsAmount > args.ShardsAmount {
+		var deletedShards int
+		var emptyShards []*Shard
+		var nonEmptyShards int
+		diff := cluster.ShardsAmount - args.ShardsAmount
+		for _, shard := range cluster.shards {
+			if deletedShards != diff {
+				if shard.currentSize > 0 {
+					nonEmptyShards++
+					continue
+				}
+				emptyShards = append(emptyShards, shard)
+				deletedShards++
+			}
+		}
+		if deletedShards < diff {
+			return nil, fmt.Errorf("cannot delete %v shards, because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
+		}
+
+		for _, shard := range cluster.shards {
+			if !include(emptyShards, shard) {
+				newCluster.shards = append(newCluster.shards, shard)
+			}
+		}
+	} else {
+		newCluster.shards = cluster.shards
+		for i, shard := range newCluster.shards {
+			if shard.currentSize/mbBytes > args.MaxSize {
+				return nil, fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.MaxSize, shard.currentSize/mbBytes)
+			}
+			newCluster.shards[i].maxSize = args.MaxSize * mbBytes
+		}
+	}
+
+	newCluster.ShardMaxSize = args.MaxSize
+	newCluster.ShardsAmount = len(newCluster.shards)
+
+	return newCluster, nil
+}
+
+func include(list []*Shard, s *Shard) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 //GCPercentRatio ...
