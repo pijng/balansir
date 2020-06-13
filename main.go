@@ -203,7 +203,7 @@ func proxyCacheResponse(r *http.Response) error {
 			hashedKey := cacheCluster.Hash.Sum(r.Request.URL.Path)
 			defer cacheCluster.Queue.Release(hashedKey)
 
-			//Create byte buffer for all response' headers and iterate over 'em
+			//Create bytes buffer for headers and iterate over them
 			headerBuf := bytes.NewBuffer([]byte{})
 
 			for key, val := range r.Header {
@@ -319,6 +319,7 @@ func configWatch() {
 			err := fillConfiguration(file, &configuration)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 			log.Println("Configuration file changes applied to Balansir")
 		}

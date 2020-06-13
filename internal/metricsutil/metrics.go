@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -83,6 +84,7 @@ func GetBalansirStats() Stats {
 	runtime.ReadMemStats(&mem)
 	endpoints := make([]*endpoint, len(metrics.servers))
 	for i, server := range metrics.servers {
+		server.Mux.RLock()
 		endpoints[i] = &endpoint{
 			server.URL.String(),
 			server.Alive,
@@ -90,6 +92,7 @@ func GetBalansirStats() Stats {
 			server.ActiveConnections.Value(),
 			server.ServerHash,
 		}
+		server.Mux.RUnlock()
 	}
 	return Stats{
 		Timestamp:            time.Now().Unix() * 1000,
@@ -107,8 +110,8 @@ func GetBalansirStats() Stats {
 			HitRatio:     metrics.cache.GetHitRatio(),
 			ShardsAmount: metrics.cache.ShardsAmount,
 			ShardSize:    metrics.cache.ShardMaxSize,
-			Hits:         metrics.cache.Hits,
-			Misses:       metrics.cache.Misses,
+			Hits:         atomic.LoadInt64(&metrics.cache.Hits),
+			Misses:       atomic.LoadInt64(&metrics.cache.Misses),
 		},
 	}
 }

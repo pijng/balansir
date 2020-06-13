@@ -12,7 +12,6 @@ import (
 
 //Server ...
 type Server struct {
-	mux               sync.RWMutex
 	URL               *url.URL
 	Weight            float64
 	Index             int
@@ -20,20 +19,21 @@ type Server struct {
 	Alive             bool
 	Proxy             *httputil.ReverseProxy
 	ServerHash        string
+	Mux               sync.RWMutex
 }
 
 //GetAlive ...
 func (server *Server) GetAlive() bool {
-	server.mux.RLock()
-	defer server.mux.RUnlock()
+	server.Mux.RLock()
+	defer server.Mux.RUnlock()
 	status := server.Alive
 	return status
 }
 
 //SetAlive ...
 func (server *Server) SetAlive(status bool) {
-	server.mux.Lock()
-	defer server.mux.Unlock()
+	server.Mux.Lock()
+	defer server.Mux.Unlock()
 	server.Alive = status
 }
 

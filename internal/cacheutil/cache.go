@@ -261,6 +261,7 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 		var emptyShards []*Shard
 		var nonEmptyShards int
 		diff := cluster.ShardsAmount - args.ShardsAmount
+
 		for _, shard := range cluster.shards {
 			if deletedShards != diff {
 				if shard.currentSize > 0 {
@@ -271,8 +272,9 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 				deletedShards++
 			}
 		}
+
 		if deletedShards < diff {
-			return nil, fmt.Errorf("cannot delete %v shards, because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
+			return nil, fmt.Errorf("cannot delete %v shard(s), because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
 		}
 
 		for _, shard := range cluster.shards {
