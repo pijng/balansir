@@ -81,9 +81,6 @@ func newServeMux() *http.ServeMux {
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	configurationGuard.Wait()
 
-	processingRequests.Add(1)
-	defer processingRequests.Done()
-
 	if configuration.Cache {
 		if ok, _ := helpers.Contains(r.URL.String(), configuration.CacheRules); ok {
 			response, err := cacheCluster.Get(r.URL.String(), false)
@@ -251,8 +248,6 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 	configurationGuard.Add(1)
 	defer configurationGuard.Done()
 
-	processingRequests.Wait()
-
 	config.Mux.Lock()
 	defer config.Mux.Unlock()
 
@@ -265,8 +260,8 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 		return errors
 	}
 
-	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
-		newPool, err := poolutil.RedefineServerPool(&configuration, &serverPoolGuard)
+	if !helpers.ServerPoolsEquals(&serverPoolHash, config.ServerList) {
+		newPool, err := poolutil.RedefineServerPool(config, &serverPoolGuard)
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -392,7 +387,6 @@ var configuration configutil.Configuration
 var pool *poolutil.ServerPool
 var serverPoolGuard sync.WaitGroup
 var configurationGuard sync.WaitGroup
-var processingRequests sync.WaitGroup
 var serverPoolHash string
 var cacheHash string
 var visitors *ratelimit.Limiter

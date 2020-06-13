@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -48,6 +49,7 @@ type CacheCluster struct {
 	backgroundUpdate bool
 	updater          *Updater
 	cacheRules       []*configutil.Rule
+	Mux              sync.RWMutex
 }
 
 //CacheClusterArgs ...
@@ -237,7 +239,14 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 		backgroundUpdate: args.BackgroundUpdate,
 		cacheRules:       args.CacheRules,
 		Queue:            cluster.Queue,
-		updater:          cluster.updater,
+	}
+
+	if args.BackgroundUpdate {
+		if cluster.updater == nil {
+			newCluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
+		} else {
+			newCluster.updater = cluster.updater
+		}
 	}
 
 	//increase shards amount
