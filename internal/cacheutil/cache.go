@@ -11,7 +11,6 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -49,7 +48,6 @@ type CacheCluster struct {
 	backgroundUpdate bool
 	updater          *Updater
 	cacheRules       []*configutil.Rule
-	Mux              sync.RWMutex
 }
 
 //CacheClusterArgs ...
