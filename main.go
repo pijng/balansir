@@ -4,6 +4,7 @@ import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
+	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/ratelimit"
@@ -13,6 +14,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -36,7 +38,7 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
 	if err != nil {
-		log.Println(err)
+		logutil.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -129,7 +131,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
 	if len(availableServers) == 0 {
-		// log.Println("all servers are down")
+		logutil.Error("All servers are down")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -150,7 +152,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		if cookieHash != nil {
 			endpoint, err := pool.GetServerByHash(cookieHash.Value)
 			if err != nil {
-				log.Println(err)
+				logutil.Warning(err)
 				return
 			}
 			endpoint.Proxy.ServeHTTP(w, r)
@@ -238,7 +240,7 @@ func proxyCacheResponse(r *http.Response) error {
 
 			err := cacheCluster.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
 			if err != nil {
-				log.Println(err)
+				logutil.Warning(err)
 			}
 		}
 	}
@@ -306,7 +308,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 func configWatch() {
 	file, err := ioutil.ReadFile("config.json")
 	if err != nil {
-		log.Fatal(err)
+		logutil.Error(fmt.Sprintf("Error reading configuration file: %v", err))
 	}
 	md := md5.Sum(file)
 	fileHash := hex.EncodeToString(md[:16])
@@ -319,10 +321,10 @@ func configWatch() {
 			fileHash = fileHashNext
 			err := fillConfiguration(file, &configuration)
 			if err != nil {
-				log.Println(err)
+				logutil.Error(fmt.Sprintf("Configuration error: %v", err))
 				continue
 			}
-			log.Println("Configuration file changes applied to Balansir")
+			logutil.Info("Configuration file changes applied to Balansir")
 		}
 		time.Sleep(time.Second)
 	}
@@ -359,13 +361,15 @@ func listenAndServeTLSWithAutocert() {
 			certManager.HTTPHandler(nil),
 		)
 		if err != nil {
-			log.Fatalf(`Error starting listener: %s`, err)
+			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
 		}
 	}()
 
 	err := server.ListenAndServeTLS("", "")
 	if err != nil {
-		log.Fatalf(`Error starting TLS listener: %s`, err)
+		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
+	} else {
+		logutil.Info("Balansir is up!")
 	}
 }
 
@@ -380,8 +384,9 @@ func listenAndServeTLSWithSelfSignedCerts() {
 		log.Fatal(server.ListenAndServe())
 	}()
 
+	logutil.Info("Balansir is up!")
 	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
-		log.Fatalf(`Error starting TLS listener: %s`, err)
+		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
 	}
 }
 
@@ -396,13 +401,16 @@ var cacheCluster *cacheutil.CacheCluster
 var rateCounter *rateutil.Rate
 
 func main() {
+	logutil.Init()
+	logutil.Info("Booting up...")
+
 	file, err := ioutil.ReadFile("config.json")
 	if err != nil {
-		log.Fatal(err)
+		logutil.Fatal(fmt.Sprintf("Error reading configuration file: %v", err))
 	}
 
 	if err := fillConfiguration(file, &configuration); err != nil {
-		log.Println(err)
+		logutil.Fatal(fmt.Sprintf("Configuration error: %v", err))
 	}
 
 	go serversCheck()
@@ -430,6 +438,7 @@ func main() {
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
+		logutil.Info("Balansir is up!")
 		log.Fatal(server.ListenAndServe())
 	}
 

@@ -2,6 +2,7 @@ package cacheutil
 
 import (
 	"balansir/internal/configutil"
+	"balansir/internal/logutil"
 	"bytes"
 	"errors"
 	"fmt"
@@ -226,7 +227,7 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 	if cluster == nil {
 		cacheCluster := New(*args)
 		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
-		log.Print("Cache enabled")
+		logutil.Info("Cache enabled")
 		return cacheCluster, nil
 	}
 
