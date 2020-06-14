@@ -134,7 +134,8 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if key := r.Context().Value("background-update"); key == nil {
+	_, err := r.Cookie("background-update")
+	if err != nil {
 		rateCounter.RateIncrement()
 		rtStart := time.Now()
 		defer rateCounter.ResponseCount(rtStart)

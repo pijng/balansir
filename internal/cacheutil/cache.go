@@ -295,6 +295,7 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 	newCluster.ShardMaxSize = args.MaxSize
 	newCluster.ShardsAmount = len(newCluster.shards)
 
+	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
 	return newCluster, nil
 }
 
