@@ -9,15 +9,23 @@ import (
 )
 
 const (
-	tagInfo    = "INFO: "
-	tagWarning = "WARNING: "
-	tagError   = "ERROR: "
-	tagFatal   = "FATAL: "
+	tagInfo    = "INFO    "
+	tagWarning = "WARNING "
+	tagError   = "ERROR   "
+	tagFatal   = "FATAL   "
+)
+
+const (
+	infoColor    = "\033[1;40m%s\033[0m"
+	warningColor = "\033[1;43m%s\033[0m"
+	errorColor   = "\033[1;31m%s\033[0m"
+	fatalColor   = "\033[1;35m%s\033[0m"
 )
 
 const (
 	flags   = log.Ldate | log.Ltime
-	logPath = "./logs/data.log"
+	logDir  = "./log"
+	logPath = "./log/data.log"
 )
 
 //Logger ...
@@ -34,8 +42,8 @@ var defaultLogger *Logger
 
 //Init ...
 func Init() {
-	if _, err := os.Stat("./logs"); os.IsNotExist(err) {
-		err := os.Mkdir("./logs", os.ModePerm)
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		err := os.Mkdir(logDir, os.ModePerm)
 		if err != nil {
 			log.Fatalf("failed to create './logs' directory: %v", err)
 		}
@@ -46,53 +54,60 @@ func Init() {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
 
-	iLogs := []io.Writer{lf}
-	wLogs := []io.Writer{lf}
-	eLogs := []io.Writer{lf}
-	fLogs := []io.Writer{lf}
+	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
+	wLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
+	eLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
+	fLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
+
+	iLogs.SetPrefix(fmt.Sprintf(infoColor, tagInfo))
+	wLogs.SetPrefix(fmt.Sprintf(warningColor, tagWarning))
+	eLogs.SetPrefix(fmt.Sprintf(errorColor, tagError))
+	fLogs.SetPrefix(fmt.Sprintf(fatalColor, tagFatal))
 
 	defaultLogger = &Logger{
-		infoLog:     log.New(io.MultiWriter(iLogs...), tagInfo, flags),
-		warningLog:  log.New(io.MultiWriter(wLogs...), tagWarning, flags),
-		errorLog:    log.New(io.MultiWriter(eLogs...), tagError, flags),
-		fatalLog:    log.New(io.MultiWriter(fLogs...), tagFatal, flags),
+		infoLog:     iLogs,
+		warningLog:  wLogs,
+		errorLog:    eLogs,
+		fatalLog:    fLogs,
 		initialized: true,
 	}
 }
 
-func (l *Logger) output(severity string, txt string) {
+func (l *Logger) output(severity string, txt string, exit ...bool) {
 	l.mx.Lock()
 	defer l.mx.Unlock()
 
 	switch severity {
 	case tagInfo:
-		l.infoLog.Output(3, txt)
+		l.infoLog.Output(3, fmt.Sprintf(infoColor, txt))
 	case tagWarning:
-		l.warningLog.Output(3, txt)
+		l.warningLog.Output(3, fmt.Sprintf(warningColor, txt))
 	case tagError:
-		l.errorLog.Output(3, txt)
+		l.errorLog.Output(3, fmt.Sprintf(errorColor, txt))
 	case tagFatal:
-		l.fatalLog.Output(3, txt)
-		os.Exit(1)
+		l.fatalLog.Output(3, fmt.Sprintf(fatalColor, txt))
+		if len(exit) > 0 {
+			os.Exit(1)
+		}
 	}
 }
 
 //Info ...
-func Info(txt ...interface{}) {
-	defaultLogger.output(tagInfo, fmt.Sprint(txt...))
+func Info(txt interface{}) {
+	defaultLogger.output(tagInfo, fmt.Sprint(txt))
 }
 
 //Warning ...
-func Warning(txt ...interface{}) {
-	defaultLogger.output(tagWarning, fmt.Sprint(txt...))
+func Warning(txt interface{}) {
+	defaultLogger.output(tagWarning, fmt.Sprint(txt))
 }
 
 //Error ...
-func Error(txt ...interface{}) {
-	defaultLogger.output(tagError, fmt.Sprint(txt...))
+func Error(txt interface{}) {
+	defaultLogger.output(tagError, fmt.Sprint(txt))
 }
 
 //Fatal ...
-func Fatal(txt ...interface{}) {
-	defaultLogger.output(tagFatal, fmt.Sprint(txt...))
+func Fatal(txt interface{}, exit ...bool) {
+	defaultLogger.output(tagFatal, fmt.Sprint(txt), exit...)
 }

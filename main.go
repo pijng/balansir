@@ -319,12 +319,15 @@ func configWatch() {
 		fileHashNext = hex.EncodeToString(md[:16])
 		if fileHash != fileHashNext {
 			fileHash = fileHashNext
-			err := fillConfiguration(file, &configuration)
-			if err != nil {
-				logutil.Error(fmt.Sprintf("Configuration error: %v", err))
+			errs := fillConfiguration(file, &configuration)
+			if errs != nil {
+				logutil.Error("Configuration errors:")
+				for i := 0; i < len(errs); i++ {
+					logutil.Error(fmt.Sprintf("\t %v", errs[i]))
+				}
 				continue
 			}
-			logutil.Info("Configuration file changes applied to Balansir")
+			logutil.Info("Configuration changes applied to Balansir")
 		}
 		time.Sleep(time.Second)
 	}
@@ -362,12 +365,14 @@ func listenAndServeTLSWithAutocert() {
 		)
 		if err != nil {
 			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
+			logutil.Fatal("Shutdown", true)
 		}
 	}()
 
 	err := server.ListenAndServeTLS("", "")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
+		logutil.Fatal("Shutdown", true)
 	} else {
 		logutil.Info("Balansir is up!")
 	}
@@ -387,6 +392,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 	logutil.Info("Balansir is up!")
 	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
+		logutil.Fatal("Shutdown", true)
 	}
 }
 
@@ -407,10 +413,17 @@ func main() {
 	file, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error reading configuration file: %v", err))
+		logutil.Fatal("Shutdown", true)
 	}
 
-	if err := fillConfiguration(file, &configuration); err != nil {
-		logutil.Fatal(fmt.Sprintf("Configuration error: %v", err))
+	if errs := fillConfiguration(file, &configuration); errs != nil {
+		logutil.Fatal("Configuration errors:")
+		for i := 0; i < len(errs); i++ {
+			logutil.Fatal(fmt.Sprintf("\t %v", errs[i]))
+			if len(errs)-1 == i {
+				logutil.Fatal("Shutdown", true)
+			}
+		}
 	}
 
 	go serversCheck()
