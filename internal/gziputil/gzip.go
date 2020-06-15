@@ -1,10 +1,11 @@
 package gziputil
 
 import (
+	"balansir/internal/logutil"
 	"balansir/internal/serverutil"
 	"compress/gzip"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -34,7 +35,7 @@ func ServeWithGzip(endpoint *serverutil.Server, timeout int, w http.ResponseWrit
 	defer func() {
 		err := gz.Close()
 		if err != nil {
-			log.Println("Error closing gzip writer:", err)
+			logutil.Error(fmt.Sprintf("Error closing gzip writer: %v", err))
 		}
 	}()
 

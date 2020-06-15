@@ -4,6 +4,7 @@ import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/gziputil"
+	"balansir/internal/logutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,7 +21,7 @@ import (
 func ReturnPortFromHost(host string) string {
 	_, host, err := net.SplitHostPort(host)
 	if err != nil {
-		log.Println(err)
+		logutil.Warning(err)
 		return ""
 	}
 	return host
@@ -29,7 +31,7 @@ func ReturnPortFromHost(host string) string {
 func ReturnIPFromHost(host string) string {
 	ip, _, err := net.SplitHostPort(host)
 	if err != nil {
-		log.Println(err)
+		logutil.Warning(err)
 		return ""
 	}
 	return ip
@@ -124,5 +126,36 @@ func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 		} else {
 			log.Printf(`proxy error: %s`, err.Error())
 		}
+	}
+}
+
+type delayed func(interface{})
+
+type dMeta struct {
+	dC int64
+}
+
+var limiter *dMeta
+
+//CallLimit ...
+func CallLimit(tick time.Duration, fn delayed, arg string) {
+	if limiter == nil {
+		limiter = &dMeta{
+			dC: 0,
+		}
+		go func() {
+			timer := time.NewTicker(time.Second * tick)
+			for {
+				select {
+				case <-timer.C:
+					atomic.StoreInt64(&limiter.dC, 0)
+				}
+			}
+		}()
+	}
+
+	if atomic.LoadInt64(&limiter.dC) == 0 {
+		fn(arg)
+		atomic.AddInt64(&limiter.dC, 1)
 	}
 }

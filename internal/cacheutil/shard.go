@@ -1,11 +1,11 @@
 package cacheutil
 
 import (
+	"balansir/internal/logutil"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -117,13 +117,13 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 				if updater != nil {
 					urlString, err := updater.keyStorage.GetInitialKey(keyIndex)
 					if err != nil {
-						log.Println(err)
+						logutil.Warning(err)
 						continue
 					}
 
 					err = updater.InvalidateCachedResponse(urlString, &s.mux)
 					if err != nil {
-						log.Println(err)
+						logutil.Error(err)
 					}
 				}
 			}
@@ -141,7 +141,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 
 	if s.maxSize-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
-			log.Println(err)
+			logutil.Warning(err)
 		}
 	}
 
@@ -159,7 +159,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 
 	if s.maxSize-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
-			log.Println(err)
+			logutil.Warning(err)
 		}
 	}
 

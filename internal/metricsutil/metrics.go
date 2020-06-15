@@ -3,6 +3,7 @@ package metricsutil
 import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
+	"balansir/internal/logutil"
 	"balansir/internal/metricsutil/pstats"
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
@@ -63,7 +64,7 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(val); err != nil {
-		log.Println(err)
+		logutil.Warning(err)
 	}
 }
 
@@ -125,7 +126,7 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 	tmpl := template.Must(template.ParseFiles(wd + "/content/templates/index.html"))
 	err = tmpl.Execute(w, nil)
 	if err != nil {
-		log.Println(err)
+		logutil.Error(err)
 	}
 }
 
@@ -143,12 +144,12 @@ func getRSSUsage() int64 {
 	case "darwin":
 		rss, err = pstats.GetRSSInfoDarwin()
 		if err != nil {
-			log.Println(err)
+			logutil.Warning(err)
 		}
 	case "linux":
 		rss, err = pstats.GetRSSInfoLinux()
 		if err != nil {
-			log.Println(err)
+			logutil.Warning(err)
 		}
 	default:
 		rss = 0

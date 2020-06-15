@@ -12,6 +12,7 @@ import (
 
 const (
 	tagInfo    = "INFO    "
+	tagNotice  = "NOTICE  "
 	tagWarning = "WARNING "
 	tagError   = "ERROR   "
 	tagFatal   = "FATAL   "
@@ -19,13 +20,13 @@ const (
 
 const (
 	infoColor    = "\033[1;40m%s\033[0m"
-	warningColor = "\033[1;43m%s\033[0m"
+	noticeColor  = "\033[1;32m%s\033[0m"
+	warningColor = "\033[1;33m%s\033[0m"
 	errorColor   = "\033[1;31m%s\033[0m"
 	fatalColor   = "\033[1;35m%s\033[0m"
 )
 
 const (
-	flags   = log.Ldate | log.Ltime
 	logDir  = "./log"
 	logPath = "./log/data.log"
 )
@@ -33,6 +34,7 @@ const (
 //Logger ...
 type Logger struct {
 	infoLog     *log.Logger
+	noticeLog   *log.Logger
 	warningLog  *log.Logger
 	errorLog    *log.Logger
 	fatalLog    *log.Logger
@@ -57,12 +59,14 @@ func Init() {
 	}
 
 	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	nLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
 	wLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
 	eLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
 	fLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
 
 	defaultLogger = &Logger{
 		infoLog:     iLogs,
+		noticeLog:   nLogs,
 		warningLog:  wLogs,
 		errorLog:    eLogs,
 		fatalLog:    fLogs,
@@ -76,13 +80,15 @@ func (l *Logger) output(severity string, txt string, exit ...bool) {
 
 	switch severity {
 	case tagInfo:
-		l.infoLog.Output(3, logFormat(infoColor, tagInfo, dateFormat(time.Now()), txt))
+		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt))
+	case tagNotice:
+		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt))
 	case tagWarning:
-		l.warningLog.Output(3, logFormat(warningColor, tagWarning, dateFormat(time.Now()), txt))
+		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt))
 	case tagError:
-		l.errorLog.Output(3, logFormat(errorColor, tagError, dateFormat(time.Now()), txt))
+		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt))
 	case tagFatal:
-		l.fatalLog.Output(3, logFormat(fatalColor, tagFatal, dateFormat(time.Now()), txt))
+		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt))
 		if len(exit) > 0 {
 			os.Exit(1)
 		}
@@ -103,6 +109,11 @@ func dateFormat(cTime time.Time) string {
 //Info ...
 func Info(txt interface{}) {
 	defaultLogger.output(tagInfo, fmt.Sprint(txt))
+}
+
+//Notice ...
+func Notice(txt interface{}) {
+	defaultLogger.output(tagNotice, fmt.Sprint(txt))
 }
 
 //Warning ...

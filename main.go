@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -131,7 +132,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
 	if len(availableServers) == 0 {
-		logutil.Error("All servers are down")
+		helpers.CallLimit(2, logutil.Error, "All servers are down")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -257,16 +258,16 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 	serverPoolGuard.Add(1)
 	defer serverPoolGuard.Done()
 
-	var errors []error
+	var errs []error
 	if err := json.Unmarshal(file, &config); err != nil {
-		errors = append(errors, err)
-		return errors
+		errs = append(errs, errors.New(fmt.Sprint("config.json malformed: ", err)))
+		return errs
 	}
 
 	if !helpers.ServerPoolsEquals(&serverPoolHash, config.ServerList) {
 		newPool, err := poolutil.RedefineServerPool(config, &serverPoolGuard)
 		if err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 		if newPool != nil {
 			pool = newPool
@@ -293,7 +294,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 		if !helpers.CacheEquals(&cacheHash, &args) {
 			newCacheCluster, err := cacheutil.RedefineCache(&args, cacheCluster)
 			if err != nil {
-				errors = append(errors, err)
+				errs = append(errs, err)
 			}
 			if newCacheCluster != nil {
 				cacheCluster = newCacheCluster
@@ -302,7 +303,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 	}
 
 	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
-	return errors
+	return errs
 }
 
 func configWatch() {
@@ -327,7 +328,7 @@ func configWatch() {
 				}
 				continue
 			}
-			logutil.Info("Configuration changes applied to Balansir")
+			logutil.Notice("Configuration changes applied to Balansir")
 		}
 		time.Sleep(time.Second)
 	}
@@ -374,7 +375,7 @@ func listenAndServeTLSWithAutocert() {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
 		logutil.Fatal("Shutdown", true)
 	} else {
-		logutil.Info("Balansir is up!")
+		logutil.Notice("Balansir is up!")
 	}
 }
 
@@ -389,7 +390,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 		log.Fatal(server.ListenAndServe())
 	}()
 
-	logutil.Info("Balansir is up!")
+	logutil.Notice("Balansir is up!")
 	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
 		logutil.Fatal("Shutdown", true)
@@ -451,7 +452,7 @@ func main() {
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
-		logutil.Info("Balansir is up!")
+		logutil.Notice("Balansir is up!")
 		log.Fatal(server.ListenAndServe())
 	}
 

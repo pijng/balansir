@@ -1,8 +1,9 @@
 package serverutil
 
 import (
+	"balansir/internal/logutil"
 	"expvar"
-	"log"
+	"fmt"
 	"net"
 	"net/http/httputil"
 	"net/url"
@@ -44,12 +45,12 @@ func (server *Server) CheckAlive(tcpTimeout *int) {
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
 		server.SetAlive(false)
-		log.Println("Server is down:", err)
+		logutil.Warning(fmt.Sprintf("Server is down: %v", err))
 		return
 	}
 	connection.Close()
 	if !server.GetAlive() {
-		log.Println("Server is up:", server.URL.Host)
+		logutil.Notice(fmt.Sprintf("Server is up: %v", server.URL.Host))
 	}
 	server.SetAlive(true)
 }

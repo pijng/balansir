@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"runtime/debug"
@@ -211,7 +210,7 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	_, err := w.Write(bodyBuf.Bytes())
 
 	if err != nil {
-		log.Println(err)
+		logutil.Error(err)
 	}
 }
 
