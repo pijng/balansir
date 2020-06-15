@@ -132,7 +132,6 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
 	if len(availableServers) == 0 {
-		helpers.CallLimit(2, logutil.Error, "All servers are down")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -182,8 +181,15 @@ func serversCheck() {
 		select {
 		case <-timer.C:
 			serverPoolGuard.Wait()
+			inActive := 0
 			for _, server := range pool.ServerList {
-				server.CheckAlive(&configuration.Timeout)
+				active := server.CheckAlive(&configuration.Timeout)
+				if !active {
+					inActive++
+				}
+			}
+			if inActive == len(pool.ServerList) {
+				logutil.Error("All servers are down!")
 			}
 			configuration.Mux.Lock()
 			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)

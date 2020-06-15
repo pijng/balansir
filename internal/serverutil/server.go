@@ -39,18 +39,19 @@ func (server *Server) SetAlive(status bool) {
 }
 
 //CheckAlive ...
-func (server *Server) CheckAlive(tcpTimeout *int) {
+func (server *Server) CheckAlive(tcpTimeout *int) bool {
 	configurationTimeout := *tcpTimeout
 	timeout := time.Second * time.Duration(configurationTimeout)
 	connection, err := net.DialTimeout("tcp", server.URL.Host, timeout)
 	if err != nil {
 		server.SetAlive(false)
 		logutil.Warning(fmt.Sprintf("Server is down: %v", err))
-		return
+		return false
 	}
 	connection.Close()
 	if !server.GetAlive() {
 		logutil.Notice(fmt.Sprintf("Server is up: %v", server.URL.Host))
 	}
 	server.SetAlive(true)
+	return true
 }
