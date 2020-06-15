@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -54,15 +56,10 @@ func Init() {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
 
-	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
-	wLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
-	eLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
-	fLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", flags)
-
-	iLogs.SetPrefix(fmt.Sprintf(infoColor, tagInfo))
-	wLogs.SetPrefix(fmt.Sprintf(warningColor, tagWarning))
-	eLogs.SetPrefix(fmt.Sprintf(errorColor, tagError))
-	fLogs.SetPrefix(fmt.Sprintf(fatalColor, tagFatal))
+	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	wLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	eLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	fLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
 
 	defaultLogger = &Logger{
 		infoLog:     iLogs,
@@ -79,17 +76,28 @@ func (l *Logger) output(severity string, txt string, exit ...bool) {
 
 	switch severity {
 	case tagInfo:
-		l.infoLog.Output(3, fmt.Sprintf(infoColor, txt))
+		l.infoLog.Output(3, logFormat(infoColor, tagInfo, dateFormat(time.Now()), txt))
 	case tagWarning:
-		l.warningLog.Output(3, fmt.Sprintf(warningColor, txt))
+		l.warningLog.Output(3, logFormat(warningColor, tagWarning, dateFormat(time.Now()), txt))
 	case tagError:
-		l.errorLog.Output(3, fmt.Sprintf(errorColor, txt))
+		l.errorLog.Output(3, logFormat(errorColor, tagError, dateFormat(time.Now()), txt))
 	case tagFatal:
-		l.fatalLog.Output(3, fmt.Sprintf(fatalColor, txt))
+		l.fatalLog.Output(3, logFormat(fatalColor, tagFatal, dateFormat(time.Now()), txt))
 		if len(exit) > 0 {
 			os.Exit(1)
 		}
 	}
+}
+
+func logFormat(color string, txt ...string) string {
+	return fmt.Sprintf(color, strings.Join(txt, " "))
+}
+
+func dateFormat(cTime time.Time) string {
+	dateStamp := cTime.Format("2006/01/02")
+	timestamp := cTime.Format("15:04:05")
+
+	return fmt.Sprintf("%v %v ", dateStamp, timestamp)
 }
 
 //Info ...
