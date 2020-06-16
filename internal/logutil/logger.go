@@ -1,8 +1,10 @@
 package logutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -27,9 +29,18 @@ const (
 )
 
 const (
-	logDir  = "./log"
-	logPath = "./log/data.log"
+	logDir   = "./log"
+	logPath  = "./log/data.log"
+	jsonDir  = "./log/dashboard"
+	jsonPath = "./log/dashboard/data.json"
 )
+
+//JSONlog ...
+type JSONlog struct {
+	Timestamp time.Time `json:"timestamp"`
+	Tag       string    `json:"tag"`
+	Text      string    `json:"text"`
+}
 
 //Logger ...
 type Logger struct {
@@ -53,7 +64,19 @@ func Init() {
 		}
 	}
 
+	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
+		err := os.Mkdir(jsonDir, os.ModePerm)
+		if err != nil {
+			log.Fatalf("failed to create './logs/dashboard' directory: %v", err)
+		}
+	}
+
 	lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	if err != nil {
+		log.Fatalf("failed to create/open log file: %v", err)
+	}
+
+	_, err = os.OpenFile(jsonPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 	if err != nil {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
@@ -81,14 +104,23 @@ func (l *Logger) output(severity string, txt string, exit ...bool) {
 	switch severity {
 	case tagInfo:
 		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt))
+		l.jsonLogger(time.Now(), tagInfo, txt)
+
 	case tagNotice:
 		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt))
+		l.jsonLogger(time.Now(), tagNotice, txt)
+
 	case tagWarning:
 		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt))
+		l.jsonLogger(time.Now(), tagWarning, txt)
+
 	case tagError:
 		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt))
+		l.jsonLogger(time.Now(), tagError, txt)
+
 	case tagFatal:
 		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt))
+		l.jsonLogger(time.Now(), tagFatal, txt)
 		if len(exit) > 0 {
 			os.Exit(1)
 		}
@@ -104,6 +136,42 @@ func dateFormat(cTime time.Time) string {
 	timestamp := cTime.Format("15:04:05")
 
 	return fmt.Sprintf("%v %v ", dateStamp, timestamp)
+}
+
+func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
+	file, err := os.OpenFile(jsonPath, os.O_RDWR, 0644)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer file.Close()
+
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if len(bytes) == 0 {
+		bytes = []byte("[]")
+	}
+
+	var logs []JSONlog
+	err = json.Unmarshal(bytes, &logs)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	logs = append(logs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
+	newBytes, err := json.MarshalIndent(logs, "", "    ")
+	if err != nil {
+		log.Println(err)
+	}
+
+	_, err = file.WriteAt(newBytes, 0)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 //Info ...
