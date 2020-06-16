@@ -138,17 +138,21 @@ func dateFormat(cTime time.Time) string {
 	return fmt.Sprintf("%v %v ", dateStamp, timestamp)
 }
 
+func (l *Logger) malformedJSON(err error) {
+	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("dashboard/data.json malformed: %v", err)))
+}
+
 func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 	file, err := os.OpenFile(jsonPath, os.O_RDWR, 0644)
 	if err != nil {
-		log.Println(err)
+		l.malformedJSON(err)
 		return
 	}
 	defer file.Close()
 
 	bytes, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Println(err)
+		l.malformedJSON(err)
 		return
 	}
 	if len(bytes) == 0 {
@@ -158,19 +162,21 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 	var logs []JSONlog
 	err = json.Unmarshal(bytes, &logs)
 	if err != nil {
-		log.Println(err)
+		l.malformedJSON(err)
 		return
 	}
 
 	logs = append(logs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
 	newBytes, err := json.MarshalIndent(logs, "", "    ")
 	if err != nil {
-		log.Println(err)
+		l.malformedJSON(err)
+		return
 	}
 
 	_, err = file.WriteAt(newBytes, 0)
 	if err != nil {
-		log.Println(err)
+		l.malformedJSON(err)
+		return
 	}
 }
 
