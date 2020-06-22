@@ -136,8 +136,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := r.Cookie("background-update")
-	if err != nil {
+	if r.Header.Get("X-Balansir-Background-Update") == "" {
 		rateCounter.RateIncrement()
 		rtStart := time.Now()
 		defer rateCounter.ResponseCount(rtStart)
@@ -205,7 +204,7 @@ func metricsPolling() {
 func proxyCacheResponse(r *http.Response) error {
 	//Check if URL must be cached
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
-		trackMiss := r.Request.Context().Value("background-update") != nil
+		trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
 
 		//Here we're checking if response' url is not cached.
 		_, err := cacheCluster.Get(r.Request.URL.Path, trackMiss)
