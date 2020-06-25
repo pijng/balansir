@@ -343,7 +343,7 @@ func listenAndServeTLSWithAutocert() {
 
 	certManager := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(configuration.WhiteHosts...),
+		HostPolicy: autocert.HostWhitelist(configuration.AutocertHosts...),
 		Cache:      autocert.DirCache(configuration.CertDir),
 	}
 

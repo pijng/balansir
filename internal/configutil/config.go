@@ -16,7 +16,7 @@ type Configuration struct {
 	Delay                    int         `json:"server_check_timer"`
 	SessionPersistence       bool        `json:"session_persistence"`
 	Autocert                 bool        `json:"autocert"`
-	WhiteHosts               []string    `json:"white_hosts"`
+	AutocertHosts            []string    `json:"autocert_hosts"`
 	CertDir                  string      `json:"autocert_dir"`
 	SessionMaxAge            int         `json:"session_max_age"`
 	GzipResponse             bool        `json:"gzip_response"`
