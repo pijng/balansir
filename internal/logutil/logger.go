@@ -97,7 +97,7 @@ func Init() {
 	}
 }
 
-func (l *Logger) output(severity string, txt string, exit ...bool) {
+func (l *Logger) output(severity string, txt string) {
 	l.mx.Lock()
 	defer l.mx.Unlock()
 
@@ -121,9 +121,6 @@ func (l *Logger) output(severity string, txt string, exit ...bool) {
 	case tagFatal:
 		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt))
 		l.jsonLogger(time.Now(), tagFatal, txt)
-		if len(exit) > 0 {
-			os.Exit(1)
-		}
 	}
 }
 
@@ -201,6 +198,6 @@ func Error(txt interface{}) {
 }
 
 //Fatal ...
-func Fatal(txt interface{}, exit ...bool) {
-	defaultLogger.output(tagFatal, fmt.Sprint(txt), exit...)
+func Fatal(txt interface{}) {
+	defaultLogger.output(tagFatal, fmt.Sprint(txt))
 }

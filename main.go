@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -371,14 +372,16 @@ func listenAndServeTLSWithAutocert() {
 		)
 		if err != nil {
 			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
-			logutil.Fatal("Shutdown", true)
+			logutil.Fatal("Shutdown")
+			os.Exit(1)
 		}
 	}()
 
 	err := server.ListenAndServeTLS("", "")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown", true)
+		logutil.Fatal("Shutdown")
+		os.Exit(1)
 	} else {
 		logutil.Notice("Balansir is up!")
 	}
@@ -398,7 +401,8 @@ func listenAndServeTLSWithSelfSignedCerts() {
 	logutil.Notice("Balansir is up!")
 	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown", true)
+		logutil.Fatal("Shutdown")
+		os.Exit(1)
 	}
 }
 
@@ -419,7 +423,8 @@ func main() {
 	file, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error reading configuration file: %v", err))
-		logutil.Fatal("Shutdown", true)
+		logutil.Fatal("Shutdown")
+		os.Exit(1)
 	}
 
 	if errs := fillConfiguration(file, &configuration); errs != nil {
@@ -427,7 +432,8 @@ func main() {
 		for i := 0; i < len(errs); i++ {
 			logutil.Fatal(fmt.Sprintf("\t %v", errs[i]))
 			if len(errs)-1 == i {
-				logutil.Fatal("Shutdown", true)
+				logutil.Fatal("Shutdown")
+				os.Exit(1)
 			}
 		}
 	}
