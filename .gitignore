@@ -1,5 +1,5 @@
-/vendor
 /node_modules
+/content/assets/js/dist
 server.crt
 server.key
 .DS_Store

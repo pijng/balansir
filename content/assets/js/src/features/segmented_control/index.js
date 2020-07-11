@@ -1,0 +1,1 @@
+export { selectRange, $selectedRange, $inputs } from './model';

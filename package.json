@@ -4,7 +4,8 @@
   "description": "<!-- <p align=\"center\">     <img src=\"content/assets/balansir_small.png\" alt=\"Balansir\" title=\"Balansir\" /> </p> -->",
   "main": "index.js",
   "scripts": {
-    "build": "browserify content/assets/js/src/main.js -o content/assets/js/dist/bundle.js -t [ babelify --presets [ @babel/preset-env ] ]"
+    "build": "./node_modules/.bin/rollup --config",
+    "dev": "./node_modules/.bin/rollup --config --watch"
   },
   "repository": {
     "type": "git",
@@ -18,16 +19,12 @@
   "homepage": "https://github.com/pijng/balansir#readme",
   "dependencies": {
     "chart.js": "^2.9.3",
-    "effector": "^20.16.0",
-    "jquery": "^3.5.1",
-    "moment": "^2.26.0"
+    "effector": "^20.17.0",
+    "forest": "^0.16.7"
   },
   "devDependencies": {
-    "@babel/cli": "^7.10.1",
-    "@babel/core": "^7.10.2",
-    "@babel/polyfill": "^7.10.1",
-    "@babel/preset-env": "^7.10.2",
-    "babelify": "^10.0.0",
-    "browserify": "^16.5.1"
+    "@rollup/plugin-commonjs": "^13.0.0",
+    "@rollup/plugin-node-resolve": "^8.1.0",
+    "rollup": "^2.18.0"
   }
 }

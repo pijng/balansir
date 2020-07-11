@@ -1,4 +1,4 @@
-import {createEffect} from 'effector'
+import { createEffect } from 'effector';
 
 export const getStatsFx = createEffect({
   handler: async() => {

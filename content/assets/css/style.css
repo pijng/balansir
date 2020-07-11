@@ -112,7 +112,6 @@ body {
 }
 
 .chart-small .chart-label p {
-  margin-bottom: 4px;
   font-weight: 700;
   font-size: 24px;
 }
@@ -139,7 +138,7 @@ body {
 }
 
 .chart-large .chart-label p {
-  margin-bottom: 4px;
+  display: inline;
   font-weight: 700;
   font-size: 24px;
 }
@@ -148,6 +147,7 @@ body {
 .chart-large span {
   color: rgba(255, 69, 58, 1);
   font-size: 20px;
+  display: block;
   font-weight: 700;
   padding-left: 8px;
 }
@@ -291,7 +291,7 @@ body {
 .date-picker {
   position: absolute;
   right: 0px;
-  top: 3px;
+  top: 2px;
 }
 
 .date-picker .filter {
@@ -337,7 +337,12 @@ body {
   background-color: #2c2c2eff;
   z-index: 999;
   right: 0;
-  display: none;
+}
+
+.date-picker .calendar-overlay {
+  width: 100vw;
+  height: 100vh;
+  background-color: #212121;
 }
 
 .date-picker .calendar .dates {
@@ -413,7 +418,21 @@ body {
 .date-picker .calendar .calendar-body .month-name {
   color: #ffffffff;
   text-align: center;
-  margin: 0px auto 20px auto;
+  margin: 0px 2px 20px auto;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  touch-action: none;
+}
+
+.date-picker .calendar .calendar-body .month .days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.date-picker .calendar .calendar-body .year-name {
+  color: #ffffffff;
+  text-align: center;
+  margin: 0px auto 20px 2px;
   -webkit-user-select: none;
   -moz-user-select: none;
   touch-action: none;
@@ -445,7 +464,7 @@ body {
   margin: 0 auto;
 }
 
-.date-picker .calendar .calendar-body .week .cell {
+.date-picker .calendar .calendar-body .cell {
   padding: 8px 0px;
   width: 34px;
   font-size: 15px;
@@ -457,13 +476,13 @@ body {
   touch-action: none;
 }
 
-.date-picker .calendar .calendar-body .week .cell.active {
+.date-picker .calendar .calendar-body .cell.active {
   color: #ffffffff;
   cursor: pointer;
   position: relative;
 }
 
-.date-picker .calendar .calendar-body .week .cell.current:after {
+.date-picker .calendar .calendar-body .cell.current:after {
   position: absolute;
   content: "";
   width: 28px;
@@ -478,16 +497,12 @@ body {
   border-radius: 50px;
 }
 
-.date-picker .calendar .calendar-body .week .cell.active:hover {
+.date-picker .calendar .calendar-body .cell.active:hover {
   background-color: #545458ff;
 }
 
-.date-picker .calendar .calendar-body .week .cell.active.selected {
+.date-picker .calendar .calendar-body .cell.active.selected {
   background-color: rgba(255, 69, 58, 1);
-}
-
-.date-picker .calendar.visible {
-  display: block;
 }
 
 .date-picker .calendar .time {
@@ -511,8 +526,12 @@ body {
   display: none;
 }
 
-.date-picker .calendar .time input + input {
-  margin-left: 4px;
+.date-picker .calendar .time input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.date-picker .calendar .time input:invalid {
+  color: #545458ff;
 }
 
 .date-picker .calendar .time input:focus {
