@@ -3,6 +3,7 @@ package main
 import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
+	"balansir/internal/gziputil"
 	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
@@ -96,7 +97,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 			hashedKey := cacheCluster.Hash.Sum(r.URL.String())
 			guard := cacheCluster.Queue.Get(hashedKey)
 			//If there is no queue for a given key – create queue and set release on timeout.
-			//Timeout should prevent situation when release won't be triggered in proxyCacheResponse
+			//Timeout should prevent situation when release won't be tri  ggered in modifyResponse
 			//due to server timeouts
 			if guard == nil {
 				cacheCluster.Queue.Set(hashedKey)
@@ -202,7 +203,14 @@ func metricsPolling() {
 	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
 }
 
-func proxyCacheResponse(r *http.Response) error {
+func modifyResponse(r *http.Response) error {
+	//Check if response must be gzipped
+	if configuration.GzipResponse {
+		if gziputil.Allow(r.Header.Get("Content-Type")) {
+			r.Body = gziputil.WithGzip(r)
+		}
+	}
+
 	//Check if URL must be cached
 	if ok, TTL := helpers.Contains(r.Request.URL.Path, configuration.CacheRules); ok {
 		trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
@@ -278,7 +286,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 		if newPool != nil {
 			pool = newPool
 			for _, server := range pool.ServerList {
-				server.Proxy.ModifyResponse = proxyCacheResponse
+				server.Proxy.ModifyResponse = modifyResponse
 				server.Proxy.ErrorHandler = helpers.ProxyErrorHandler
 			}
 		}

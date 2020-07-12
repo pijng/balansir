@@ -3,7 +3,6 @@ package helpers
 import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
-	"balansir/internal/gziputil"
 	"balansir/internal/logutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
@@ -91,10 +90,6 @@ func CacheEquals(cacheHash *string, incomingArgs *cacheutil.CacheClusterArgs) bo
 
 //ServeDistributor ...
 func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request, gzipEnabled bool) {
-	if gzipEnabled {
-		gziputil.ServeWithGzip(endpoint, timeout, w, r)
-		return
-	}
 	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
 	if err != nil {
 		return

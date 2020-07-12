@@ -2,43 +2,46 @@ package gziputil
 
 import (
 	"balansir/internal/logutil"
-	"balansir/internal/serverutil"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 )
 
-type gzipResponseWriter struct {
-	io.Writer
-	http.ResponseWriter
-}
+//WithGzip ...
+func WithGzip(r *http.Response) io.ReadCloser {
+	b, _ := ioutil.ReadAll(r.Body)
 
-func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
-}
-
-func (w gzipResponseWriter) WriteHeader(code int) {
-	w.Header().Del("Content-Length")
-	w.ResponseWriter.WriteHeader(code)
-}
-
-//ServeWithGzip ...
-func ServeWithGzip(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		endpoint.Proxy.ServeHTTP(w, r)
-		return
+	var gzBuf bytes.Buffer
+	gz := gzip.NewWriter(&gzBuf)
+	if _, err := gz.Write(b); err != nil {
+		logutil.Error(fmt.Sprintf("Error writing to gzip: %v", err))
 	}
-	w.Header().Set("Content-Encoding", "gzip")
-	gz := gzip.NewWriter(w)
-	defer func() {
-		err := gz.Close()
-		if err != nil {
-			logutil.Error(fmt.Sprintf("Error closing gzip writer: %v", err))
-		}
-	}()
 
-	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-	endpoint.Proxy.ServeHTTP(gzr, r)
+	err := gz.Close()
+	if err != nil {
+		logutil.Error(fmt.Sprintf("Error closing gzip writer: %v", err))
+	}
+
+	r.Header.Set("Content-Encoding", "gzip")
+	r.Header.Del("Content-Length")
+	return ioutil.NopCloser(&gzBuf)
+}
+
+var gzipTypes = []string{"text/text", "text/html", "text/plain", "text/xml", "text/css", "application/x-javascript", "application/javascript"}
+
+//Allow ...
+func Allow(contentType string) bool {
+	for _, gType := range gzipTypes {
+		types := strings.Split(contentType, ";")
+		for _, wType := range types {
+			if wType == gType {
+				return true
+			}
+		}
+	}
+	return false
 }
