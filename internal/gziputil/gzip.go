@@ -35,10 +35,10 @@ var gzipTypes = []string{"text/text", "text/html", "text/plain", "text/xml", "te
 
 //Allow ...
 func Allow(contentType string) bool {
-	for _, gType := range gzipTypes {
-		types := strings.Split(contentType, ";")
-		for _, wType := range types {
-			if wType == gType {
+	types := strings.Split(contentType, ";")
+	for _, сType := range types {
+		for _, gType := range gzipTypes {
+			if сType == gType {
 				return true
 			}
 		}
