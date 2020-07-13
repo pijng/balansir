@@ -5,7 +5,7 @@ import { Calendar } from '../calendar';
 
 const MajorChart = ($AVG, $99percentile, $90percentile, $uniqueDatesArray,
   selectRange, $inputs, $selectedSpan, selectSpan, $isVisible, daySelected, 
-  $spans, selectTime, $times) => {
+  $spans, selectTime, $times, $monthSelected) => {
   h('div', () => {
     spec({ attr: {class: "wrapper chart-large"} })
 
@@ -17,7 +17,7 @@ const MajorChart = ($AVG, $99percentile, $90percentile, $uniqueDatesArray,
     
         SegmentedControl(selectRange, $inputs, $spans)
         Calendar($uniqueDatesArray, $selectedSpan, selectSpan, $isVisible, daySelected,
-          $spans, selectTime, $times
+          $spans, selectTime, $times, $monthSelected
         )
       })
     

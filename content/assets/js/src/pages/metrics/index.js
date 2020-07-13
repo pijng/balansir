@@ -2,7 +2,7 @@ import { h, spec } from 'forest';
 import { MajorChart, MinorChart, Navigation } from '../../ui';
 import { selectRange, $inputs } from '../../features/segmented_control';
 import { daySelected } from '../../features/chart';
-import { selectTime, $times } from '../../features/calendar';
+import { selectTime, $times, $monthSelected } from '../../features/calendar';
 import {
   $uniqueDatesArray,
   $AVG,
@@ -31,7 +31,7 @@ const Metrics = () => {
 
     MajorChart($AVG, $99percentile, $90percentile, $uniqueDatesArray, selectRange, 
       $inputs, $selectedSpan, selectSpan, $isVisible, daySelected, $spans, selectTime,
-      $times
+      $times, $monthSelected
     )
   })
 }

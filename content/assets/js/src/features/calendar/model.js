@@ -114,7 +114,9 @@ sample({
   target: $spans
 })
 
+const $monthSelected = createStore(0)
+
 export {
   $uniqueDatesArray, $selectedSpan, selectSpan, openCalendar,
-  $isVisible, selectTime, $times, $spans
+  $isVisible, selectTime, $times, $spans, $monthSelected
 };

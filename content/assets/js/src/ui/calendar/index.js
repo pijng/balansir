@@ -2,7 +2,7 @@ import { h, spec } from 'forest';
 import { CalendarBody } from './molecules/calendar-body';
 
 const Calendar = ($uniqueDatesArray, $selectedSpan, selectSpan, $isVisible, 
-  daySelected, $spans, selectTime, $times
+  daySelected, $spans, selectTime, $times, $monthSelected
   ) => {
   h('div', () => {
     spec({ attr: {class: "date-picker"} })
@@ -23,7 +23,7 @@ const Calendar = ($uniqueDatesArray, $selectedSpan, selectSpan, $isVisible,
       })
 
       CalendarBody($uniqueDatesArray, $selectedSpan, selectSpan, daySelected,
-        $spans, selectTime, $times
+        $spans, selectTime, $times, $monthSelected
       )
     })
 
