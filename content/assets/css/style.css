@@ -332,7 +332,7 @@ body {
 
 .date-picker .calendar {
   width: 276px;
-  height: 376px;
+  height: 384px;
   position: absolute;
   background-color: #2c2c2eff;
   z-index: 999;
