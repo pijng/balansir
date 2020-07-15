@@ -143,7 +143,7 @@ func dateFormat(cTime time.Time) string {
 }
 
 func (l *Logger) malformedJSON(err error) {
-	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("dashboard/data.json malformed: %v", err)))
+	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", jsonPath, err)))
 }
 
 func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
@@ -185,6 +185,9 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 }
 
 func (l *Logger) stats(stats interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
 	file, err := os.OpenFile(StatsPath, os.O_RDWR, 0644)
 	if err != nil {
 		l.malformedJSON(err)
