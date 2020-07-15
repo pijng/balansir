@@ -116,7 +116,8 @@ func getBalansirStats() Stats {
 		}
 		server.Mux.RUnlock()
 	}
-	return Stats{
+
+	stats := Stats{
 		Timestamp:            time.Now().Unix() * 1000,
 		RequestsPerSecond:    metrics.rateCounter.RateValue(),
 		AverageResponseTime:  metrics.rateCounter.ResponseValue(),
@@ -128,14 +129,19 @@ func getBalansirStats() Stats {
 		TransparentProxyMode: metrics.configuration.TransparentProxyMode,
 		Algorithm:            metrics.configuration.Algorithm,
 		Cache:                metrics.configuration.Cache,
-		CacheInfo: cacheInfo{
+	}
+
+	if metrics.configuration.Cache {
+		stats.CacheInfo = cacheInfo{
 			HitRatio:     metrics.cache.GetHitRatio(),
 			ShardsAmount: metrics.cache.ShardsAmount,
 			ShardSize:    metrics.cache.ShardMaxSize,
 			Hits:         atomic.LoadInt64(&metrics.cache.Hits),
 			Misses:       atomic.LoadInt64(&metrics.cache.Misses),
-		},
+		}
 	}
+
+	return stats
 }
 
 //Metrics ...
