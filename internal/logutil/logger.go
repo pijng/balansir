@@ -30,9 +30,11 @@ const (
 
 const (
 	logDir   = "./log"
-	logPath  = "./log/data.log"
+	logPath  = "./log/balansir.log"
 	jsonDir  = "./log/dashboard"
-	jsonPath = "./log/dashboard/data.json"
+	jsonPath = "./log/dashboard/balansir.json"
+	//StatsPath ...
+	StatsPath = "./log/dashboard/stats.json"
 )
 
 //JSONlog ...
@@ -79,6 +81,11 @@ func Init() {
 	_, err = os.OpenFile(jsonPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 	if err != nil {
 		log.Fatalf("failed to create/open log file: %v", err)
+	}
+
+	_, err = os.OpenFile(StatsPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	if err != nil {
+		log.Fatalf("failed to create/open stats file: %v", err)
 	}
 
 	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
@@ -164,7 +171,45 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 	}
 
 	logs = append(logs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
-	newBytes, err := json.MarshalIndent(logs, "", "    ")
+	newBytes, err := json.Marshal(logs)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+
+	_, err = file.WriteAt(newBytes, 0)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+}
+
+func (l *Logger) stats(stats interface{}) {
+	file, err := os.OpenFile(StatsPath, os.O_RDWR, 0644)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+	defer file.Close()
+
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+	if len(bytes) == 0 {
+		bytes = []byte("[]")
+	}
+
+	var logs []interface{}
+	err = json.Unmarshal(bytes, &logs)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+
+	logs = append(logs, stats)
+	newBytes, err := json.Marshal(logs)
 	if err != nil {
 		l.malformedJSON(err)
 		return
@@ -200,4 +245,9 @@ func Error(txt interface{}) {
 //Fatal ...
 func Fatal(txt interface{}) {
 	defaultLogger.output(tagFatal, fmt.Sprint(txt))
+}
+
+//Stats ...
+func Stats(stats interface{}) {
+	defaultLogger.stats(stats)
 }

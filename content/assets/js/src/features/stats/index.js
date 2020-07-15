@@ -1,15 +1,20 @@
 import { createStore, createEvent, forward, sample } from 'effector';
-import { getStatsFx } from '../polling';
+import { getStatsFx, getCollectedStatsFx } from '../polling';
+
+const $stats = createStore([])
+
+forward({
+  from: getCollectedStatsFx.doneData,
+  to: $stats
+})
 
 const addStat = createEvent()
+$stats.on(addStat, (state, params) => [...state, params])
 
 forward({
   from: getStatsFx.doneData,
   to: addStat
 })
-
-const $stats = createStore([])
-  .on(addStat, (state, params) => [...state, params])
 
 const $filteredStats = createStore([{
   average_response_time: 0, 

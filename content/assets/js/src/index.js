@@ -1,6 +1,6 @@
 import { using, h, spec } from 'forest';
 import { initCharts } from './features/chart';
-import { getStatsFx } from './features/polling';
+import { getStatsFx, getCollectedStatsFx } from './features/polling';
 import { Metrics } from './pages/metrics';
 import { openCalendar } from './features/calendar';
 
@@ -13,7 +13,7 @@ using(document.querySelector('body'), () => {
     })
     Metrics()
   })
-  getStatsFx()
+  getCollectedStatsFx()
   setInterval(getStatsFx, 1000)
 })
 

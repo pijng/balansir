@@ -1,5 +1,5 @@
 import { h, spec, list, variant, remap } from 'forest';
-import { createStore, createEvent, sample, combine, guard, merge } from 'effector';
+import { createStore, createEvent, sample, combine, guard } from 'effector';
 
 const WEEK_DAYS = createStore(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])
 

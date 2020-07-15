@@ -73,11 +73,11 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 
 func newServeMux() *http.ServeMux {
 	sm := http.NewServeMux()
+	metricsPolling()
 	sm.HandleFunc("/", loadBalance)
 	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
-
-	metricsPolling()
 	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
+	sm.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
 
 	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
 	return sm
@@ -368,11 +368,12 @@ func listenAndServeTLSWithAutocert() {
 	port := configuration.Port
 
 	go func() {
+		metricsPolling()
+
 		http.HandleFunc("/", loadBalance)
 		http.HandleFunc("/balansir/metrics", metricsutil.Metrics)
-
-		metricsPolling()
 		http.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
+		http.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
 
 		err := http.ListenAndServe(
 			":"+strconv.Itoa(port),

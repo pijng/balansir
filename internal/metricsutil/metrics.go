@@ -9,6 +9,7 @@ import (
 	"balansir/internal/serverutil"
 	"encoding/json"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -60,12 +61,23 @@ type cacheInfo struct {
 
 //MetrictStats ...
 func MetrictStats(w http.ResponseWriter, r *http.Request) {
-	val := GetBalansirStats()
+	val := getBalansirStats()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(val); err != nil {
 		logutil.Warning(err)
 	}
+}
+
+//CollectedStats ...
+func CollectedStats(w http.ResponseWriter, r *http.Request) {
+	file, _ := os.OpenFile(logutil.StatsPath, os.O_RDWR, 0644)
+	defer file.Close()
+	bytes, _ := ioutil.ReadAll(file)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(bytes)
 }
 
 var metrics *objects
@@ -78,10 +90,19 @@ func AssignMetricsObjects(rc *rateutil.Rate, c *configutil.Configuration, s []*s
 		servers:       s,
 		cache:         cc,
 	}
+
+	go func() {
+		timer := time.NewTicker(1 * time.Second)
+		for {
+			select {
+			case <-timer.C:
+				logutil.Stats(getBalansirStats())
+			}
+		}
+	}()
 }
 
-//GetBalansirStats ...
-func GetBalansirStats() Stats {
+func getBalansirStats() Stats {
 	runtime.ReadMemStats(&mem)
 	endpoints := make([]*endpoint, len(metrics.servers))
 	for i, server := range metrics.servers {
