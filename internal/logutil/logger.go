@@ -184,6 +184,9 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 	}
 }
 
+var logs []interface{}
+var bytes []byte
+
 func (l *Logger) stats(stats interface{}) {
 	l.mx.Lock()
 	defer l.mx.Unlock()
@@ -195,34 +198,30 @@ func (l *Logger) stats(stats interface{}) {
 	}
 	defer file.Close()
 
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err = ioutil.ReadAll(file)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
+
 	if len(bytes) == 0 {
 		bytes = []byte("[]")
 	}
 
-	var logs []interface{}
-	err = json.Unmarshal(bytes, &logs)
+	jsonLogs, err := json.Marshal(stats)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
 
-	logs = append(logs, stats)
-	newBytes, err := json.Marshal(logs)
-	if err != nil {
-		l.malformedJSON(err)
-		return
+	bytes = bytes[:len(bytes)-1]
+	if len(bytes) > 1 {
+		bytes = append(bytes, []byte(",")...)
 	}
+	bytes = append(bytes, jsonLogs...)
+	bytes = append(bytes, []byte("]")...)
 
-	_, err = file.WriteAt(newBytes, 0)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
+	file.WriteAt(bytes, 0)
 }
 
 //Info ...
