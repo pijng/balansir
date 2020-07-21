@@ -163,15 +163,15 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 		bytes = []byte("[]")
 	}
 
-	var logs []JSONlog
-	err = json.Unmarshal(bytes, &logs)
+	var jsonLogs []JSONlog
+	err = json.Unmarshal(bytes, &jsonLogs)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
 
-	logs = append(logs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
-	newBytes, err := json.Marshal(logs)
+	jsonLogs = append(jsonLogs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
+	newBytes, err := json.Marshal(jsonLogs)
 	if err != nil {
 		l.malformedJSON(err)
 		return
