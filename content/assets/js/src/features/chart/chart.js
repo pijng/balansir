@@ -104,16 +104,15 @@ const formatDate = (date) => {
   return `${(date.getHours()<10?'0':'')+date.getHours()}:${(date.getMinutes()<10?'0':'')+date.getMinutes()}:${(date.getSeconds()<10?'0':'')+date.getSeconds()}`
 }
 
-const createChart = ({id, c, l, r, bw, tx, p}) => {
-  const node = document.getElementById(id).getContext('2d');
-  const chart = chartFabrik(node, c, l, r, bw, tx, p)
+const createChart = (meta, node) => {
+  const {c, l, r, bw, tx, p} = meta
+  const chart = chartFabrik(node.getContext('2d'), c, l, r, bw, tx, p)
   addChart(chart)
 }
 
-const initCharts = () => {
-  for (const meta of chartsMeta) {
-    createChart(meta)
-  }
+const initChart = (node) => {
+  const meta = chartsMeta.find(c => c.id === node.id)
+  createChart(meta, node)
 }
 
-export { initCharts };
+export { initChart };

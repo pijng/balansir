@@ -1,11 +1,11 @@
-import { h, spec } from 'forest';
+import { h, spec, node } from 'forest';
 import { SegmentedControl } from '../segmented-control';
 import { MajorLabel } from './major-label';
 import { Calendar } from '../calendar';
 
 const MajorChart = ($AVG, $99percentile, $90percentile, $uniqueDatesArray,
   selectRange, $inputs, $selectedSpan, selectSpan, $isVisible, daySelected, 
-  $spans, selectTime, $times, $monthSelected) => {
+  $spans, selectTime, $times, $monthSelected, initChart) => {
   h('div', () => {
     spec({ attr: {class: "wrapper chart-large"} })
 
@@ -32,7 +32,13 @@ const MajorChart = ($AVG, $99percentile, $90percentile, $uniqueDatesArray,
       h('div', () => {
         spec({ attr: {class: "chart-wrapper_area"} })
     
-        h('canvas', { attr: {id: "chartAVGRT"} })
+        h('canvas', () => {
+          spec( {attr: {id: "chartAVGRT"} })
+
+          node(node => {
+            initChart(node)
+          })
+        })
       })
   
     })

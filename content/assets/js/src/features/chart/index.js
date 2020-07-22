@@ -1,2 +1,2 @@
-export { initCharts } from './chart';
+export { initChart } from './chart';
 export { daySelected } from './model';

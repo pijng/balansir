@@ -1,6 +1,6 @@
-import { h, spec } from 'forest';
+import { h, spec, node } from 'forest';
 
-const MinorChart = ($value, label, chartId) => {
+const MinorChart = ($value, label, chartId, initChart) => {
   h('div', () => {
     spec({ attr: {class: "chart-wrapper chart-small"} })
 
@@ -15,7 +15,13 @@ const MinorChart = ($value, label, chartId) => {
     h('div', () => {
       spec({ attr: {class: "chart-wrapper_area"} })
 
-      h('canvas', { attr: {id: `${chartId}`} })
+      h('canvas', () => {
+        spec({ attr: {id: `${chartId}`} })
+
+        node(node => {
+          initChart(node)
+        })
+      })
     })
 
   })
