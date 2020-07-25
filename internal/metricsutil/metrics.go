@@ -80,6 +80,17 @@ func CollectedStats(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
+//CollectedLogs ...
+func CollectedLogs(w http.ResponseWriter, r *http.Request) {
+	file, _ := os.OpenFile(logutil.JSONPath, os.O_RDWR, 0644)
+	defer file.Close()
+	bytes, _ := ioutil.ReadAll(file)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(bytes)
+}
+
 var metrics *objects
 
 //AssignMetricsObjects ...

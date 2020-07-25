@@ -77,6 +77,7 @@ func newServeMux() *http.ServeMux {
 	sm.HandleFunc("/", loadBalance)
 	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 	sm.HandleFunc("/balansir/logs", metricsutil.Metrics)
+	sm.HandleFunc("/balansir/logs/collected_logs", metricsutil.CollectedLogs)
 	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 	sm.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
 
@@ -374,6 +375,7 @@ func listenAndServeTLSWithAutocert() {
 		http.HandleFunc("/", loadBalance)
 		http.HandleFunc("/balansir/metrics", metricsutil.Metrics)
 		http.HandleFunc("/balansir/logs", metricsutil.Metrics)
+		http.HandleFunc("/balansir/logs/collected_logs", metricsutil.CollectedLogs)
 		http.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 		http.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
 

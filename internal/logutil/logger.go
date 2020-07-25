@@ -29,10 +29,11 @@ const (
 )
 
 const (
-	logDir   = "./log"
-	logPath  = "./log/balansir.log"
-	jsonDir  = "./log/dashboard"
-	jsonPath = "./log/dashboard/balansir.json"
+	logDir  = "./log"
+	logPath = "./log/balansir.log"
+	jsonDir = "./log/dashboard"
+	//JSONPath ...
+	JSONPath = "./log/dashboard/logs.json"
 	//StatsPath ...
 	StatsPath = "./log/dashboard/stats.json"
 )
@@ -78,7 +79,7 @@ func Init() {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
 
-	_, err = os.OpenFile(jsonPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	_, err = os.OpenFile(JSONPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 	if err != nil {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
@@ -143,11 +144,11 @@ func dateFormat(cTime time.Time) string {
 }
 
 func (l *Logger) malformedJSON(err error) {
-	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", jsonPath, err)))
+	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err)))
 }
 
 func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
-	file, err := os.OpenFile(jsonPath, os.O_RDWR, 0644)
+	file, err := os.OpenFile(JSONPath, os.O_RDWR, 0644)
 	if err != nil {
 		l.malformedJSON(err)
 		return
@@ -170,6 +171,9 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 		return
 	}
 
+	// trim tag's trailing spaces – we use them in a standard stdout to show logs in a
+	// consistent way. On the frontend we use table columns and styles to create that consistency.
+	tag = strings.TrimSpace(tag)
 	jsonLogs = append(jsonLogs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
 	newBytes, err := json.Marshal(jsonLogs)
 	if err != nil {
