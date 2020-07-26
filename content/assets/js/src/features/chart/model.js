@@ -1,4 +1,4 @@
-import { createEvent, createStore, sample, createEffect, merge, guard } from 'effector';
+import { createEvent, createStore, sample, createEffect, merge } from 'effector';
 import { updateCharts } from './update';
 import { $stats } from '../stats';
 import { $selectedRange, selectRange } from '../segmented_control';
@@ -88,14 +88,14 @@ sample({
 
 sample({
   source: [$charts, $stats, $spans],
-  clock: daySelected,
+  clock: $spans,
   fn: ([charts, stats, spans]) => {
     const {from, to} = spans
     const majorStats = stats.filter(a => {
-      const date = a.timestamp
-      return (date >= from.date && date <= to.date)
+      return (a.timestamp >= from.date && a.timestamp <= (to.date || stats[stats.length-1].timestamp))
     })
-    return {charts, majorStats}
+    const chart = [charts.find(c => c.canvas.id === 'chartAVGRT')]
+    return ({charts: chart, majorStats: majorStats})
   },
   target: updateChartsFx
 })
