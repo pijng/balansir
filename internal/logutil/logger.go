@@ -189,43 +189,43 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 }
 
 var logs []interface{}
-var bytes []byte
+var jsonLogs []byte
+var sFile *os.File
+var sErr error
 
 func (l *Logger) stats(stats interface{}) {
 	l.mx.Lock()
 	defer l.mx.Unlock()
 
-	file, err := os.OpenFile(StatsPath, os.O_RDWR, 0644)
+	sFile, sErr = os.OpenFile(StatsPath, os.O_RDWR, 0644)
+	if sErr != nil {
+		l.malformedJSON(sErr)
+		return
+	}
+	defer sFile.Close()
+
+	info, err := sFile.Stat()
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
-	defer file.Close()
+	length := info.Size()
 
-	bytes, err = ioutil.ReadAll(file)
+	if length == 0 {
+		sFile.WriteAt([]byte("[]"), 0)
+	}
+
+	jsonLogs, err = json.Marshal(stats)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
 
-	if len(bytes) == 0 {
-		bytes = []byte("[]")
+	if length > 2 {
+		jsonLogs = append([]byte(","), jsonLogs...)
 	}
-
-	jsonLogs, err := json.Marshal(stats)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-
-	bytes = bytes[:len(bytes)-1]
-	if len(bytes) > 1 {
-		bytes = append(bytes, []byte(",")...)
-	}
-	bytes = append(bytes, jsonLogs...)
-	bytes = append(bytes, []byte("]")...)
-
-	file.WriteAt(bytes, 0)
+	jsonLogs = append(jsonLogs, []byte("]")...)
+	sFile.WriteAt(jsonLogs, length-1)
 }
 
 //Info ...
