@@ -17,9 +17,9 @@ import {
 } from './model';
 
 const Metrics = () => {
-  Navigation()
+  Navigation(document.location.pathname)
   h('div', () => {
-    spec({ attr: {class: "stats-view"} })
+    spec({ attr: {class: "container-view"} })
   
     h('div', () => {
       spec({ attr: {class: "chart-inline-block"} })

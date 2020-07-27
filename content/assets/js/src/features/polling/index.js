@@ -16,4 +16,12 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
   }
 })
 
-export { getStatsFx, getCollectedStatsFx };
+const getCollectedLogsFx = createEffect('getCollectedLogsFx', {
+  handler: async() => {
+    const url = "/balansir/logs/collected_logs"
+    const req = await fetch(url)
+    return req.json()
+  }
+})
+
+export { getStatsFx, getCollectedStatsFx, getCollectedLogsFx };

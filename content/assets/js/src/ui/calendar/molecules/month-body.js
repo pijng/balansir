@@ -50,7 +50,7 @@ const MonthBody = ($store, daySelected, year, month, $selectedSpan, $spans) => {
               year: year,
               sel: $selectedSpan,
               spn: $spans
-              },({act, day, month, year, sel, spn}) => {
+              }, ({act, day, month, year, sel, spn}) => {
                 if (act.includes(day)) {
                   const thisDate = new Date(year, month, day).toDateString()
                   if (sel.from && spn.from.active) {

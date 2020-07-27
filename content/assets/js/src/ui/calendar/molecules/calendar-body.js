@@ -30,7 +30,7 @@ const CalendarBody = (
           fn: (months) => months.length - 1,
           target: $monthSelected
         })
-        $relevantMonthSelected.on(initRelevantMonth, _ => true)
+        $relevantMonthSelected.on(initRelevantMonth, () => true)
 
         list(months, ({store, key: idx}) => {
           const month = remap(store, 'month')

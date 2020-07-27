@@ -3,7 +3,7 @@ import { addChart } from './model';
 
 const systemRed = '255, 69, 58'
 const systemBlue = '10, 132, 255'
-const systemYellow = '255, 214, 10'
+// const systemYellow = '255, 214, 10'
 
 const chartsMeta = [
   {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0}, 
