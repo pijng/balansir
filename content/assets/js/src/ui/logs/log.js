@@ -6,7 +6,7 @@ const TAG_COLORS = {
   "NOTICE":  "#30d158ff",
   "WARNING": "#ffd60aff",
   "ERROR":   "#ff453aff",
-  "FATAL":   "#bf5af2ff	"
+  "FATAL":   "#bf5af2ff"
 }
 
 const Log = ($timestamp, $tag, $text, scrollID, isRendered, $tags, $searchInput) => {

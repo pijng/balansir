@@ -14,7 +14,7 @@ const updateChartsFx = createEffect("updateChartsFx", {
 
 sample({
   source: [$charts, $stats, $selectedRange, $spans],
-  clock: merge([$stats, selectRange]),
+  clock: [$stats, selectRange],
   fn: ([charts, stats, range, spans]) => {
     const majorTo = spans.to.active ? spans.to.date : stats[stats.length-1].timestamp
     var majorFrom
