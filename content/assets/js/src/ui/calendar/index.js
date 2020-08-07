@@ -1,7 +1,7 @@
 import { h, spec } from 'forest';
 import { CalendarBody } from './molecules/calendar-body';
 
-const Calendar = ($uniqueDatesArray, $selectedSpan, selectSpan, $isVisible, 
+const Calendar = ($uniqueDatesArray, $selectedSpan, selectSpan, $isVisible,
   daySelected, $spans, selectTime, $times, $monthSelected
   ) => {
   h('div', () => {

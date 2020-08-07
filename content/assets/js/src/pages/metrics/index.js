@@ -20,16 +20,16 @@ const Metrics = () => {
   Navigation(document.location.pathname)
   h('div', () => {
     spec({ attr: {class: "container-view"} })
-  
+
     h('div', () => {
       spec({ attr: {class: "chart-inline-block"} })
-  
+
       MinorChart($RPM, "RPM", "chartRPM", initChart)
       MinorChart($RSS, "MEMORY", "chartRSS", initChart)
       MinorChart(0, "ERRORS", "chartERR", initChart)
     })
 
-    MajorChart($AVG, $99percentile, $90percentile, $uniqueDatesArray, selectRange, 
+    MajorChart($AVG, $99percentile, $90percentile, $uniqueDatesArray, selectRange,
       $inputs, $selectedSpan, selectSpan, $isVisible, daySelected, $spans, selectTime,
       $times, $monthSelected, initChart
     )
