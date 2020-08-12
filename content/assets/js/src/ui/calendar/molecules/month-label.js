@@ -11,6 +11,7 @@ const MonthLabel = (idx, year, month, $prevActive, $nextActive, $monthSelected) 
     source: sample($prevActive, selectPrevMonth),
     filter: (prevActive) => prevActive
   })
+
   sample({
     source: idx,
     clock: guardedSelectedPrevMonth,
@@ -22,6 +23,7 @@ const MonthLabel = (idx, year, month, $prevActive, $nextActive, $monthSelected) 
     source: sample($nextActive, selectNextMonth),
     filter: (nextActive) => nextActive
   })
+
   sample({
     source: idx,
     clock: guardedSelectedNextMonth,
