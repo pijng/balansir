@@ -24,9 +24,9 @@ body {
 }
 
 .navigation {
-  width: 22vw;
+  width: 18vw;
   background-color: #1f1f1eff;
-  margin-top: 30px;
+  margin: 30px 0px;
 }
 
 .navigation .brand {
@@ -76,7 +76,7 @@ body {
 }
 
 .container-view {
-  width: 72vw;
+  width: 77vw;
   margin: 30px;
 }
 
@@ -259,7 +259,7 @@ body {
   margin-top: auto;
   bottom: 0;
   margin-bottom: auto;
-  background-color: #545458ff; 
+  background-color: #545458ff;
 }
 
 .segmented-control label:nth-of-type(3):after {
@@ -272,7 +272,7 @@ body {
   margin-top: auto;
   bottom: 0;
   margin-bottom: auto;
-  background-color: #545458ff; 
+  background-color: #545458ff;
 }
 
 .segmented-control label:nth-of-type(4):after {
@@ -285,7 +285,7 @@ body {
   margin-top: auto;
   bottom: 0;
   margin-bottom: auto;
-  background-color: #545458ff; 
+  background-color: #545458ff;
 }
 
 

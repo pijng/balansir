@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -202,7 +201,7 @@ func serversCheck() {
 }
 
 func metricsPolling() {
-	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
+	metricsutil.InitMetricsMeta(rateCounter, &configuration, pool.ServerList, cacheCluster)
 }
 
 func modifyResponse(r *http.Response) error {
@@ -318,7 +317,7 @@ func fillConfiguration(file []byte, config *configutil.Configuration) []error {
 		}
 	}
 
-	metricsutil.AssignMetricsObjects(rateCounter, &configuration, pool.ServerList, cacheCluster)
+	metricsutil.InitMetricsMeta(rateCounter, &configuration, pool.ServerList, cacheCluster)
 	return errs
 }
 
@@ -408,7 +407,7 @@ func listenAndServeTLSWithSelfSignedCerts() {
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
-		log.Fatal(server.ListenAndServe())
+		logutil.Fatal(server.ListenAndServe())
 	}()
 
 	logutil.Notice("Balansir is up!")
@@ -477,7 +476,7 @@ func main() {
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 		logutil.Notice("Balansir is up!")
-		log.Fatal(server.ListenAndServe())
+		logutil.Fatal(server.ListenAndServe())
 	}
 
 }

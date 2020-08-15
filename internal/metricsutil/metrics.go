@@ -8,9 +8,9 @@ import (
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -71,13 +71,11 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 
 //CollectedStats ...
 func CollectedStats(w http.ResponseWriter, r *http.Request) {
-	file, _ := os.OpenFile(logutil.StatsPath, os.O_RDWR, 0644)
-	defer file.Close()
-	bytes, _ := ioutil.ReadAll(file)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(bytes)
+	wd, err := os.Getwd()
+	if err != nil {
+		logutil.Fatal(err)
+	}
+	http.ServeFile(w, r, wd+fmt.Sprintf("/%s", logutil.StatsPath))
 }
 
 //CollectedLogs ...
@@ -93,8 +91,8 @@ func CollectedLogs(w http.ResponseWriter, r *http.Request) {
 
 var metrics *objects
 
-//AssignMetricsObjects ...
-func AssignMetricsObjects(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
+//InitMetricsMeta ...
+func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
 	metrics = &objects{
 		rateCounter:   rc,
 		configuration: c,
@@ -159,7 +157,7 @@ func getBalansirStats() Stats {
 func Metrics(w http.ResponseWriter, r *http.Request) {
 	wd, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		logutil.Fatal(err)
 	}
 	tmpl := template.Must(template.ParseFiles(wd + "/content/templates/index.html"))
 	err = tmpl.Execute(w, nil)

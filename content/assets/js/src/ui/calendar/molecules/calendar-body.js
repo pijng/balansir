@@ -27,7 +27,7 @@ const CalendarBody = (
           const $nextActive = combine(months, idx, (months, idx) => months.length-1 !== idx)
           const $monthLength = months.map(months => months.length-1)
           const $selected = combine($monthSelected, $monthLength, (selected, length) => selected + length)
-          const $inversedIdx = combine(idx, $monthLength, (idx, length) => idx - length)
+          const $invertedIdx = combine(idx, $monthLength, (idx, length) => idx - length)
 
           h('div', () => {
             spec({
@@ -35,7 +35,7 @@ const CalendarBody = (
               visible: combine($selected, idx, (selected, idx) => selected === idx)
             })
 
-            MonthLabel($inversedIdx, year, month, $prevActive, $nextActive, $monthSelected)
+            MonthLabel($invertedIdx, year, month, $prevActive, $nextActive, $monthSelected)
             MonthBody(store, daySelected, year, month, $selectedSpan, $spans)
           })
         })

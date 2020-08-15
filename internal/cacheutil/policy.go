@@ -1,8 +1,8 @@
 package cacheutil
 
 import (
+	"balansir/internal/logutil"
 	"errors"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -131,7 +131,7 @@ func getDuration(TTL string) time.Duration {
 	val, err := strconv.Atoi(splittedTTL[0])
 
 	if err != nil {
-		log.Fatal(err)
+		logutil.Fatal(err)
 	}
 	unit := splittedTTL[1]
 

@@ -8,7 +8,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -119,7 +119,7 @@ func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 		// just junk the log around.
 		if err.Error() == "context canceled" {
 		} else {
-			log.Printf(`proxy error: %s`, err.Error())
+			logutil.Error(fmt.Sprintf(`proxy error: %s`, err.Error()))
 		}
 	}
 }
