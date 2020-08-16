@@ -1,23 +1,18 @@
 import { createStore, createEvent, forward, sample } from 'effector';
-import { getStatsFx, getCollectedStatsFx } from '../polling';
 
 const $stats = createStore([])
-
-forward({
-  from: getCollectedStatsFx.doneData,
-  to: $stats
-})
 
 const addStat = createEvent()
 $stats.on(addStat, (state, params) => [...state, params])
 
+const setStats = createEvent()
 forward({
-  from: getStatsFx.doneData,
-  to: addStat
+  from: setStats,
+  to: $stats
 })
 
 const $filteredStats = createStore([{
-  average_response_time: 0, 
+  average_response_time: 0,
   requests_per_second: 0,
   memory_usage: 0,
   errors_count: 0
@@ -41,4 +36,4 @@ const $responseTimes = sample({
   fn: (state) => state.map(s => s.average_response_time)
 })
 
-export { $stats, addStat, $responseTimes, $filteredStats };
+export { $stats, addStat, setStats, $responseTimes, $filteredStats };
