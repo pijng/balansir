@@ -15,28 +15,19 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
     const url = "/balansir/metrics/collected_stats"
     const res = await fetch(url)
 
-    // since collected logs file may be VERY large it's better to read it chunk by chunk,
+    // Since collected logs file may be VERY large it's better to read it chunk by chunk,
     // than trying to parse the whole response at once
     const reader = res.body.getReader()
+    const decoder = new TextDecoder()
 
-    let resLength = 0
-    let chunks = []
+    let result = ''
     while(true) {
       const {done, value} = await reader.read()
       if (done) break
 
-      chunks.push(value)
-      resLength += value.length
+      result += decoder.decode(value)
     }
 
-    let chunksAll = new Uint8Array(resLength)
-    let position = 0
-    for (chunk of chunks) {
-      chunksAll.set(chunk, position)
-      position += chunk.length
-    }
-
-    const result = new TextDecoder('utf-8').decode(chunksAll)
     try {
       setStats(JSON.parse(result))
     } catch {
