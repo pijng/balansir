@@ -191,7 +191,7 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 	slicedResponse := bytes.Split(value, []byte(";--;"))
 	//Iterate over sliced headers
 	for _, val := range slicedResponse {
-		//Split `key`–`value` parts and iterate over 'em
+		//Split `key`–`value` parts and iterate over them
 		slicedHeader := bytes.Split(val, []byte(";-;"))
 		for i := range slicedHeader {
 			//Guard to prevent writing last header value as new header key

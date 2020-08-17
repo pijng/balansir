@@ -93,7 +93,6 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 		s.policy.mux.Unlock()
 	}
 
-	s.tail--
 	s.currentSize -= valueSize
 }
 
