@@ -33,7 +33,7 @@ func roundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 }
 
 func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func weightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 }
 
 func leastConnections(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +56,7 @@ func leastConnections(w http.ResponseWriter, r *http.Request) {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 	endpoint.ActiveConnections.Add(-1)
 }
 
@@ -66,7 +66,7 @@ func weightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, &configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r, configuration.GzipResponse)
+	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 	endpoint.ActiveConnections.Add(-1)
 }
 
