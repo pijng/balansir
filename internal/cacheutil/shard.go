@@ -169,7 +169,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 func setToFallbackShard(hasher fnv64a, shards []*Shard, exactShard *Shard, hashedKey uint64, value []byte, TTL string) (err error) {
 	for i, shard := range shards {
 		shard.mux.Lock()
-		if shard.currentSize+len(value)+headerEntrySize < shard.maxSize {
+		if shard.currentSize+len(value) < shard.maxSize {
 			shard.mux.Unlock()
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])

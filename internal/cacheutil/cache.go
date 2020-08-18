@@ -16,11 +16,9 @@ import (
 )
 
 const (
-	offset64        = 14695981039346656037
-	prime64         = 1099511628211
-	headerEntrySize = 4
-	timeEntrySize   = 4
-	mbBytes         = 1048576
+	offset64 = 14695981039346656037
+	prime64  = 1099511628211
+	mbBytes  = 1048576
 )
 
 type fnv64a struct{}
@@ -106,16 +104,16 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
 
-	if len(value)+headerEntrySize+timeEntrySize > shard.maxSize {
+	if len(value) > shard.maxSize {
 		shard.mux.Unlock()
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.maxSize/1024/1024)
 	}
 
-	if shard.currentSize+len(value)+headerEntrySize+timeEntrySize >= shard.maxSize {
+	if shard.currentSize+len(value) >= shard.maxSize {
 		shard.mux.Unlock()
 
 		if shard.policy != nil {
-			if err := shard.evict(len(value) + headerEntrySize + timeEntrySize); err != nil {
+			if err := shard.evict(len(value)); err != nil {
 				return err
 			}
 			shard.set(hashedKey, value, TTL)
