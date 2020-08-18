@@ -155,9 +155,10 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 	shard := cluster.getShard(hashedKey)
 	value, err := shard.get(hashedKey)
 	if cluster.exceedFallback {
-		if strings.Contains(string(value), "shard_reference_") {
-			hashedKey = cluster.Hash.Sum(string(value))
-			splittedVal := strings.Split(string(value), "shard_reference_")
+		if bytes.Contains(value, []byte("shard_reference_")) {
+			strValue := string(value)
+			hashedKey = cluster.Hash.Sum(strValue)
+			splittedVal := strings.Split(strValue, "shard_reference_")
 			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
 			shard = cluster.shards[index]
 			value, err = shard.get(hashedKey)
