@@ -678,7 +678,7 @@ body {
 
 .logs-block .logs-table {
   width: 100%;
-  height: 73vh;
+  height: 73.7vh;
   display: grid;
   grid-auto-rows: minmax(min-content, max-content);
   overflow-y: scroll;
@@ -692,9 +692,9 @@ body {
 }
 
 .logs-block .logs-table .log {
-  padding: 10px 15px;
+  padding: 8px 15px;
   color: #ffffff;
-  font-size: 16px;
+  font-size: 14px;
   letter-spacing: .4px;
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 6fr);
