@@ -580,7 +580,6 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   border-bottom: 1px solid #545458ff;
-  padding-bottom: 20px;
 }
 
 .logs-block .logs-header .filter {
@@ -676,9 +675,25 @@ body {
   color: #545458ff;
 }
 
+.logs-block .logs-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 6fr) minmax(0, 8fr);
+  text-align: left;
+  margin-top: 8px;
+  padding-bottom: 8px;
+}
+
+.logs-block .logs-bar .severity {
+  padding-left: 3px;
+}
+
+.logs-block .logs-bar .data {
+  padding-left: 1px;
+}
+
 .logs-block .logs-table {
   width: 100%;
-  height: 73.7vh;
+  height: 72vh;
   display: grid;
   grid-auto-rows: minmax(min-content, max-content);
   overflow-y: scroll;
@@ -692,7 +707,7 @@ body {
 }
 
 .logs-block .logs-table .log {
-  padding: 8px 15px;
+  padding: 8px 8px 8px 0px;
   color: #ffffff;
   font-size: 14px;
   letter-spacing: .4px;

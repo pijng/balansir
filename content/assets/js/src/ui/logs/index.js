@@ -2,6 +2,7 @@ import { h, spec, list } from 'forest';
 import { Log } from './log';
 import { Search } from './search';
 import { TagFilter } from './tag-filter';
+import { Bar } from './bar';
 
 const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearchFocused, toggleTag, $tags, searchLogs, $searchInput, clearSearch) => {
 
@@ -10,9 +11,10 @@ const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearc
 
     h('div', () => {
       spec({ attr: {class: "logs-header"} })
-      
+
       TagFilter(openTagFilter, $isFilterVisible, toggleTag, $tags)
       Search(focusSearch, $isSearchFocused, searchLogs, clearSearch, $searchInput)
+      Bar()
     })
 
     h('div', () => {
