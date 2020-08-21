@@ -61,9 +61,11 @@ type CacheClusterArgs struct {
 	Port             int
 }
 
+var cluster *CacheCluster
+
 //New ...
 func New(args CacheClusterArgs) *CacheCluster {
-	cache := &CacheCluster{
+	cluster = &CacheCluster{
 		shards:         make([]*Shard, args.ShardsAmount),
 		ShardsAmount:   args.ShardsAmount,
 		ShardMaxSize:   args.MaxSize,
@@ -73,12 +75,12 @@ func New(args CacheClusterArgs) *CacheCluster {
 	}
 
 	if args.BackgroundUpdate {
-		cache.backgroundUpdate = args.BackgroundUpdate
-		cache.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
+		cluster.backgroundUpdate = args.BackgroundUpdate
+		cluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
 	}
 
 	for i := 0; i < args.ShardsAmount; i++ {
-		cache.shards[i] = CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
+		cluster.shards[i] = CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
 	}
 
 	go func() {
@@ -86,12 +88,17 @@ func New(args CacheClusterArgs) *CacheCluster {
 		for {
 			select {
 			case <-timer.C:
-				cache.invalidate(time.Now().Unix())
+				cluster.invalidate(time.Now().Unix())
 			}
 		}
 	}()
 
-	return cache
+	return cluster
+}
+
+//GetCluster ...
+func GetCluster() *CacheCluster {
+	return cluster
 }
 
 func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
@@ -221,12 +228,13 @@ func (cluster *CacheCluster) GetHitRatio() float64 {
 }
 
 //RedefineCache ...
-func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster, error) {
+func RedefineCache(args *CacheClusterArgs) error {
 	if cluster == nil {
 		cacheCluster := New(*args)
 		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
 		logutil.Info("Cache enabled")
-		return cacheCluster, nil
+		cluster = cacheCluster
+		return nil
 	}
 
 	newCluster := &CacheCluster{
@@ -273,7 +281,7 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 		}
 
 		if deletedShards < diff {
-			return nil, fmt.Errorf("cannot delete %v shard(s), because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
+			return fmt.Errorf("cannot delete %v shard(s), because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
 		}
 
 		for _, shard := range cluster.shards {
@@ -285,7 +293,7 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 		newCluster.shards = cluster.shards
 		for i, shard := range newCluster.shards {
 			if shard.currentSize/mbBytes > args.MaxSize {
-				return nil, fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.MaxSize, shard.currentSize/mbBytes)
+				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.MaxSize, shard.currentSize/mbBytes)
 			}
 			newCluster.shards[i].maxSize = args.MaxSize * mbBytes
 		}
@@ -295,7 +303,8 @@ func RedefineCache(args *CacheClusterArgs, cluster *CacheCluster) (*CacheCluster
 	newCluster.ShardsAmount = len(newCluster.shards)
 
 	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
-	return newCluster, nil
+	cluster = newCluster
+	return nil
 }
 
 func include(list []*Shard, s *Shard) bool {

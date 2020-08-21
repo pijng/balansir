@@ -92,7 +92,8 @@ func CollectedLogs(w http.ResponseWriter, r *http.Request) {
 var metrics *objects
 
 //InitMetricsMeta ...
-func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, cc *cacheutil.CacheCluster) {
+func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server) {
+	cc := cacheutil.GetCluster()
 	metrics = &objects{
 		rateCounter:   rc,
 		configuration: c,

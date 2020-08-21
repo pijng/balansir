@@ -5,3 +5,4 @@ server.key
 .DS_Store
 /log
 balansir
+settings.json

@@ -32,6 +32,24 @@ type EndpointChoice struct {
 	Weight   int
 }
 
+var pool *ServerPool
+var once sync.Once
+
+//GetPool ...
+func GetPool() *ServerPool {
+	once.Do(func() {
+		pool = &ServerPool{}
+	})
+
+	return pool
+}
+
+//SetPool ...
+func SetPool(newPool *ServerPool) *ServerPool {
+	pool = newPool
+	return pool
+}
+
 //GetPoolChoice ...
 func (pool *ServerPool) GetPoolChoice() []EndpointChoice {
 	choice := []EndpointChoice{}

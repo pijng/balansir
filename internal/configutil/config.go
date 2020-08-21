@@ -48,3 +48,14 @@ type Rule struct {
 	Path string `json:"path"`
 	TTL  string `json:"ttl"`
 }
+
+var config *Configuration
+var once sync.Once
+
+//GetConfig ...
+func GetConfig() *Configuration {
+	once.Do(func() {
+		config = &Configuration{}
+	})
+	return config
+}
