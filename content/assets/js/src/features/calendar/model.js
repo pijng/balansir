@@ -7,7 +7,7 @@ const $uniqueDates = sample({
   fn: stats => stats.reduce((acc, elem) => {
     const [year, month, day]  = [new Date(elem.timestamp).getFullYear(), new Date(elem.timestamp).getMonth(), new Date(elem.timestamp).getDate()]
     acc[year] = acc[year] || {}
-    acc[year][month] = [ ...new Set( [...(acc[year][month] || []), day] ) ]
+    acc[year][month] = Array.from(new Set( [...(acc[year][month] || []), day] ) )
     return acc;
   },{})
 })
