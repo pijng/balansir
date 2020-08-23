@@ -1,12 +1,14 @@
 package main
 
 import (
+	"balansir/internal/balancing"
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
+	"balansir/internal/proxyutil"
 	"balansir/internal/ratelimit"
 	"balansir/internal/rateutil"
 	"crypto/md5"
@@ -123,16 +125,16 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	switch configuration.Algorithm {
 	case "round-robin":
-		RoundRobin(w, r)
+		balancing.RoundRobin(w, r)
 
 	case "weighted-round-robin":
-		WeightedRoundRobin(w, r)
+		balancing.WeightedRoundRobin(w, r)
 
 	case "least-connections":
-		LeastConnections(w, r)
+		balancing.LeastConnections(w, r)
 
 	case "weighted-least-connections":
-		WeightedLeastConnections(w, r)
+		balancing.WeightedLeastConnections(w, r)
 	}
 }
 
@@ -195,8 +197,8 @@ func fillConfiguration(file []byte) []error {
 		if newPool != nil {
 			pool = poolutil.SetPool(newPool)
 			for _, server := range pool.ServerList {
-				server.Proxy.ModifyResponse = ModifyResponse
-				server.Proxy.ErrorHandler = helpers.ProxyErrorHandler
+				server.Proxy.ModifyResponse = proxyutil.ModifyResponse
+				server.Proxy.ErrorHandler = proxyutil.ErrorHandler
 			}
 		}
 	}

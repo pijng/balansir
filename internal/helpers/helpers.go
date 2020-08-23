@@ -8,11 +8,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -108,49 +106,4 @@ func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
 		}
 	}
 	return false, ""
-}
-
-//ProxyErrorHandler ...
-func ProxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	if err != nil {
-		// Suppress `context canceled` error.
-		// It may occur when client cancels the request with fast refresh
-		// or by closing the connection. This error isn't informative at all and it'll
-		// just junk the log around.
-		if err.Error() == "context canceled" {
-		} else {
-			logutil.Error(fmt.Sprintf(`proxy error: %s`, err.Error()))
-		}
-	}
-}
-
-type delayed func(interface{})
-
-type dMeta struct {
-	dC int64
-}
-
-var limiter *dMeta
-
-//CallLimit ...
-func CallLimit(tick time.Duration, fn delayed, arg string) {
-	if limiter == nil {
-		limiter = &dMeta{
-			dC: 0,
-		}
-		go func() {
-			timer := time.NewTicker(time.Second * tick)
-			for {
-				select {
-				case <-timer.C:
-					atomic.StoreInt64(&limiter.dC, 0)
-				}
-			}
-		}()
-	}
-
-	if atomic.LoadInt64(&limiter.dC) == 0 {
-		fn(arg)
-		atomic.AddInt64(&limiter.dC, 1)
-	}
 }

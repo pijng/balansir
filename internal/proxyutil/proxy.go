@@ -1,4 +1,4 @@
-package main
+package proxyutil
 
 import (
 	"balansir/internal/cacheutil"
@@ -7,6 +7,7 @@ import (
 	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -72,4 +73,18 @@ func ModifyResponse(r *http.Response) error {
 		}
 	}
 	return nil
+}
+
+//ErrorHandler ...
+func ErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	if err != nil {
+		// Suppress `context canceled` error.
+		// It may occur when client cancels the request with fast refresh
+		// or by closing the connection. This error isn't informative at all and it'll
+		// just junk the log around.
+		if err.Error() == "context canceled" {
+		} else {
+			logutil.Error(fmt.Sprintf(`proxy error: %s`, err.Error()))
+		}
+	}
 }

@@ -1,4 +1,4 @@
-package main
+package balancing
 
 import (
 	"balansir/internal/configutil"
