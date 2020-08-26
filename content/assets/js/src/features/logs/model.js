@@ -22,12 +22,7 @@ const $isFilterVisible = createStore(false)
 
 const focusSearch = createEvent()
 const $isSearchFocused = createStore(false)
-  .on(focusSearch, (_, params) => {
-    if (params.target.className !== 'input') {
-      return false
-    }
-    return true
-  })
+  .on(focusSearch, (_, params) => params.target.className === 'input')
 
 const terminateActiveEntities = createEvent()
 const guardedTerminate = guard({

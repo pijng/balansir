@@ -3,6 +3,7 @@ package cacheutil
 import (
 	"balansir/internal/logutil"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -113,7 +114,7 @@ func (meta *Meta) evict() (int, uint64, error) {
 
 //TimeBased ...
 func (meta *Meta) TimeBased() bool {
-	if meta.policyType == "LRU" || meta.policyType == "MRU" {
+	if meta.policyType == _LRU || meta.policyType == _MRU {
 		return true
 	}
 	return false
@@ -131,7 +132,8 @@ func getDuration(TTL string) time.Duration {
 	val, err := strconv.Atoi(splittedTTL[0])
 
 	if err != nil {
-		logutil.Fatal(err)
+		logutil.Warning(fmt.Sprintf("error reading cache item TTL: %s. Cache item TTL is set to infinity", err.Error()))
+		return 9223372036854775807
 	}
 	unit := splittedTTL[1]
 
@@ -143,6 +145,9 @@ func getDuration(TTL string) time.Duration {
 		duration = time.Duration(time.Duration(val) * time.Minute)
 	case "hour":
 		duration = time.Duration(time.Duration(val) * time.Hour)
+	default:
+		logutil.Warning(fmt.Sprintf("cache item TTL unit must be one of the following: Hour, Minute, Second. Got %s instead. Cache item TTL was set to infinity", strings.ToLower(unit)))
+		return 9223372036854775807
 	}
 
 	return duration

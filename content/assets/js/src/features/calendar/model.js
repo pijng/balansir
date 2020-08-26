@@ -5,7 +5,8 @@ import { selectRange } from '../segmented_control';
 const $uniqueDates = sample({
   source: $stats,
   fn: stats => stats.reduce((acc, elem) => {
-    const [year, month, day]  = [new Date(elem.timestamp).getFullYear(), new Date(elem.timestamp).getMonth(), new Date(elem.timestamp).getDate()]
+    const date = new Date(elem.timestamp)
+    const [year, month, day]  = [date.getFullYear(), date.getMonth(), date.getDate()]
     acc[year] = acc[year] || {}
     acc[year][month] = Array.from(new Set( [...(acc[year][month] || []), day] ) )
     return acc;

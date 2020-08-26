@@ -6,15 +6,15 @@ const systemBlue = '10, 132, 255'
 // const systemYellow = '255, 214, 10'
 
 const chartsMeta = [
-  {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0}, 
-  {id: "chartRPM", c: systemBlue, l: "RPS", r: 0, bw: 1, tx: false,  p: 0},
-  {id: "chartRSS", c: systemBlue, l: "RSS", r: 0, bw: 1, tx: false,  p: 0},
-  {id: "chartERR", c: systemBlue, l: "ERRS", r: 0, bw: 1, tx: false,  p: 0},
+  {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0},
+  {id: "chartRPM", c: systemBlue, l: "RPS", r: 0, bw: 1, tx: false, p: 0},
+  {id: "chartRSS", c: systemBlue, l: "RSS", r: 0, bw: 1, tx: false, p: 0},
+  {id: "chartERR", c: systemBlue, l: "ERRS", r: 0, bw: 1, tx: false, p: 0},
 ]
 
 const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chartPadding) => {
   var ctx = chart
-  
+
   var gradient = ctx.createLinearGradient(0, 0, 0, 450);
   gradient.addColorStop(0, `rgba(${color}, 0.3)`);
   gradient.addColorStop(0.2, `rgba(${color}, 0.2)`);
@@ -90,8 +90,8 @@ const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chart
             maxTicksLimit: 8,
             maxRotation: 0,
             fontFamily: "SF Pro Display Regular, 'SF Pro Display Regular', sans-serif",
-            callback: function(value) { 
-              return formatDate(value); 
+            callback: function(value) {
+              return formatDate(value);
             },
           }
         }]
