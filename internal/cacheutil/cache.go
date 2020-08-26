@@ -2,6 +2,7 @@ package cacheutil
 
 import (
 	"balansir/internal/configutil"
+	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"bytes"
 	"errors"
@@ -305,6 +306,47 @@ func RedefineCache(args *CacheClusterArgs) error {
 	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
 	cluster = newCluster
 	return nil
+}
+
+//TryServeFromCache ...
+func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
+	configuration := configutil.GetConfig()
+	if ok, _ := helpers.Contains(r.URL.String(), configuration.CacheRules); ok {
+		cache := GetCluster()
+
+		response, err := cache.Get(r.URL.String(), false)
+		if err == nil {
+			ServeFromCache(w, r, response)
+			return
+		}
+
+		hashedKey := cache.Hash.Sum(r.URL.String())
+		guard := cache.Queue.Get(hashedKey)
+		//If there is no queue for a given key – create queue and set release on timeout.
+		//Timeout should prevent situation when release won't be tri  ggered in modifyResponse
+		//due to server timeouts
+		if guard == nil {
+			cache.Queue.Set(hashedKey)
+			go func() {
+				for {
+					select {
+					case <-time.After(time.Duration(configuration.WriteTimeout) * time.Second):
+						cache.Queue.Release(hashedKey)
+						return
+					}
+				}
+			}()
+		} else {
+			//If there is a queue for a given key – wait for it to be released and get the response
+			//from the cache. Optimistically we don't need to check the returned error in this case,
+			//because the only error is a "key not found" yet we immediatelly grab the value after
+			//cache set.
+			guard.Wait()
+			response, _ := cache.Get(r.URL.String(), false)
+			ServeFromCache(w, r, response)
+			return
+		}
+	}
 }
 
 func include(list []*Shard, s *Shard) bool {
