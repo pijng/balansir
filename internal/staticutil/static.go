@@ -3,7 +3,6 @@ package staticutil
 import (
 	"balansir/internal/configutil"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,39 +16,31 @@ func IsStatic(URLpath string) bool {
 }
 
 //TryServeStatic ...
-func TryServeStatic(w http.ResponseWriter, URLpath string) error {
-	file, contentType, err := getFileBytes(URLpath)
+func TryServeStatic(w http.ResponseWriter, r *http.Request) error {
+	path, contentType, err := getFileMeta(r.URL.Path)
 	if err != nil {
 		return err
 	}
 
 	w.Header().Add("Content-Type", contentType)
-	w.Write(file)
+
+	http.ServeFile(w, r, path)
 	return nil
 }
 
-func getFileBytes(URLpath string) ([]byte, string, error) {
+func getFileMeta(URLpath string) (string, string, error) {
 	alias := configutil.GetConfig().StaticFolderAlias
 	staticFolder := configutil.GetConfig().StaticFolder
+
 	filePath := strings.Split(URLpath, alias)[1]
 	path := filepath.Join(staticFolder, filePath)
+
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, "", fmt.Errorf("file %s doesn't exist", path)
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, "", fmt.Errorf("error opening %s file: %s", path, err.Error())
-	}
-	defer file.Close()
-
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, "", fmt.Errorf("error reading %s file content: %s", path, err.Error())
+		return "", "", fmt.Errorf("file %s doesn't exist", path)
 	}
 
 	extension := filepath.Ext(path)
 	contentType := MatchType(extension)
 
-	return fileBytes, contentType, nil
+	return path, contentType, nil
 }

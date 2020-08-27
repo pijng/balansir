@@ -47,7 +47,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 
 	if configuration.ServeStatic {
 		if staticutil.IsStatic(r.URL.Path) {
-			err := staticutil.TryServeStatic(w, r.URL.Path)
+			err := staticutil.TryServeStatic(w, r)
 			if err == nil {
 				return
 			}
