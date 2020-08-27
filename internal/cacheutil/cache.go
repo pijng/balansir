@@ -2,9 +2,11 @@ package cacheutil
 
 import (
 	"balansir/internal/configutil"
-	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -308,10 +310,22 @@ func RedefineCache(args *CacheClusterArgs) error {
 	return nil
 }
 
+//CacheEquals ...
+func CacheEquals(cacheHash *string, incomingArgs *CacheClusterArgs) bool {
+	serialized, _ := json.Marshal(incomingArgs)
+	md := md5.Sum(serialized)
+	newCacheHash := hex.EncodeToString(md[:16])
+	if *cacheHash == newCacheHash {
+		return true
+	}
+	*cacheHash = newCacheHash
+	return false
+}
+
 //TryServeFromCache ...
 func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
 	configuration := configutil.GetConfig()
-	if ok, _ := helpers.Contains(r.URL.String(), configuration.CacheRules); ok {
+	if ok, _ := ContainsRule(r.URL.String(), configuration.CacheRules); ok {
 		cache := GetCluster()
 
 		response, err := cache.Get(r.URL.String(), false)
@@ -347,6 +361,16 @@ func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+//ContainsRule ...
+func ContainsRule(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
+	for _, rule := range prefixes {
+		if strings.HasPrefix(path, rule.Path) {
+			return true, rule.TTL
+		}
+	}
+	return false, ""
 }
 
 func include(list []*Shard, s *Shard) bool {

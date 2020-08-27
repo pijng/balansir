@@ -2,6 +2,7 @@ package poolutil
 
 import (
 	"balansir/internal/configutil"
+	"balansir/internal/proxyutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
 	"encoding/hex"
@@ -204,6 +205,9 @@ func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 100,
 		}
+
+		proxy.ModifyResponse = proxyutil.ModifyResponse
+		proxy.ErrorHandler = proxyutil.ErrorHandler
 
 		connections := expvar.NewFloat(randomStringBytes(5))
 

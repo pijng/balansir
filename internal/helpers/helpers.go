@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/logutil"
 	"balansir/internal/serverutil"
@@ -10,7 +9,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -74,18 +72,6 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 	return false
 }
 
-//CacheEquals ...
-func CacheEquals(cacheHash *string, incomingArgs *cacheutil.CacheClusterArgs) bool {
-	serialized, _ := json.Marshal(incomingArgs)
-	md := md5.Sum(serialized)
-	newCacheHash := hex.EncodeToString(md[:16])
-	if *cacheHash == newCacheHash {
-		return true
-	}
-	*cacheHash = newCacheHash
-	return false
-}
-
 //ServeDistributor ...
 func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
 	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
@@ -96,14 +82,4 @@ func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseW
 
 	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
-}
-
-//Contains ...
-func Contains(path string, prefixes []*configutil.Rule) (ok bool, ttl string) {
-	for _, rule := range prefixes {
-		if strings.HasPrefix(path, rule.Path) {
-			return true, rule.TTL
-		}
-	}
-	return false, ""
 }

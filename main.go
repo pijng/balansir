@@ -8,9 +8,9 @@ import (
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
-	"balansir/internal/proxyutil"
 	"balansir/internal/ratelimit"
 	"balansir/internal/rateutil"
+	"balansir/internal/staticutil"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
@@ -44,6 +44,16 @@ func newServeMux() *http.ServeMux {
 func loadBalance(w http.ResponseWriter, r *http.Request) {
 	configurationGuard.Wait()
 	configuration := configutil.GetConfig()
+
+	if configuration.ServeStatic {
+		if staticutil.IsStatic(r.URL.Path) {
+			err := staticutil.TryServeStatic(w, r.URL.Path)
+			if err == nil {
+				return
+			}
+			logutil.Warning(err)
+		}
+	}
 
 	if configuration.Cache {
 		cacheutil.TryServeFromCache(w, r)
@@ -162,10 +172,6 @@ func fillConfiguration(file []byte) []error {
 		}
 		if newPool != nil {
 			pool = poolutil.SetPool(newPool)
-			for _, server := range pool.ServerList {
-				server.Proxy.ModifyResponse = proxyutil.ModifyResponse
-				server.Proxy.ErrorHandler = proxyutil.ErrorHandler
-			}
 		}
 	}
 
@@ -182,7 +188,7 @@ func fillConfiguration(file []byte) []error {
 			Port:             configuration.Port,
 		}
 
-		if !helpers.CacheEquals(&cacheHash, &args) {
+		if !cacheutil.CacheEquals(&cacheHash, &args) {
 			err := cacheutil.RedefineCache(&args)
 			if err != nil {
 				errs = append(errs, err)
