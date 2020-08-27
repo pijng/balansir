@@ -35,6 +35,9 @@ type Configuration struct {
 	CacheShardExceedFallback bool        `json:"cache_shard_exceed_fallback"`
 	CacheBackgroundUpdate    bool        `json:"cache_background_update"`
 	CacheRules               []*Rule     `json:"cache_rules"`
+	ServeStatic              bool        `json:"serve_static"`
+	StaticFolder             string      `json:"static_folder"`
+	StaticFolderAlias        string      `json:"static_folder_alias"`
 }
 
 //Endpoint ...
