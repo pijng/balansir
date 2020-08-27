@@ -30,5 +30,8 @@
     "cache_background_update": true,
     "cache_rules": [
         {"path": "/static/", "ttl": "10.Second"}
-    ]
+    ],
+    "serve_static": true,
+    "static_folder": "/Projects/static/",
+    "static_folder_alias": "/static/"
 }
