@@ -20,6 +20,8 @@ import (
 	"time"
 )
 
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 //ServerPool ...
 type ServerPool struct {
 	mux        sync.RWMutex
@@ -240,7 +242,6 @@ func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard
 }
 
 func randomStringBytes(n int) string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, n)
 	for i := range b {
 		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
