@@ -1,4 +1,4 @@
-package ratelimit
+package limitutil
 
 import (
 	"balansir/internal/configutil"

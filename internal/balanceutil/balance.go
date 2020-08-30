@@ -1,4 +1,4 @@
-package balancing
+package balanceutil
 
 import (
 	"balansir/internal/configutil"
@@ -6,6 +6,17 @@ import (
 	"balansir/internal/logutil"
 	"balansir/internal/poolutil"
 	"net/http"
+)
+
+const (
+	//RoundRobinType ...
+	RoundRobinType = "round-robin"
+	//WeightedRoundRobinType ...
+	WeightedRoundRobinType = "weighted-round-robin"
+	//LeastConnectionsType ...
+	LeastConnectionsType = "least-connections"
+	//WeightedLeastConnectionsType ...
+	WeightedLeastConnectionsType = "weighted-least-connections"
 )
 
 //RoundRobin ...

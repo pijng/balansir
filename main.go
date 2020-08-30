@@ -1,14 +1,14 @@
 package main
 
 import (
-	"balansir/internal/balancing"
+	"balansir/internal/balanceutil"
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
+	"balansir/internal/limitutil"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
-	"balansir/internal/ratelimit"
 	"balansir/internal/rateutil"
 	"balansir/internal/staticutil"
 	"crypto/md5"
@@ -36,7 +36,6 @@ func newServeMux() *http.ServeMux {
 	sm.HandleFunc("/balansir/logs/collected_logs", metricsutil.CollectedLogs)
 	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
 	sm.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
-
 	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
 	return sm
 }
@@ -100,17 +99,17 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch configuration.Algorithm {
-	case "round-robin":
-		balancing.RoundRobin(w, r)
+	case balanceutil.RoundRobinType:
+		balanceutil.RoundRobin(w, r)
 
-	case "weighted-round-robin":
-		balancing.WeightedRoundRobin(w, r)
+	case balanceutil.WeightedRoundRobinType:
+		balanceutil.WeightedRoundRobin(w, r)
 
-	case "least-connections":
-		balancing.LeastConnections(w, r)
+	case balanceutil.LeastConnectionsType:
+		balanceutil.LeastConnections(w, r)
 
-	case "weighted-least-connections":
-		balancing.WeightedLeastConnections(w, r)
+	case balanceutil.WeightedLeastConnectionsType:
+		balanceutil.WeightedLeastConnections(w, r)
 	}
 }
 
@@ -303,7 +302,7 @@ var serverPoolGuard sync.WaitGroup
 var configurationGuard sync.WaitGroup
 var serverPoolHash string
 var cacheHash string
-var visitors *ratelimit.Limiter
+var visitors *limitutil.Limiter
 var rateCounter *rateutil.Rate
 
 func main() {
@@ -331,7 +330,7 @@ func main() {
 	go serversCheck()
 	go configWatch()
 
-	visitors = ratelimit.NewLimiter()
+	visitors = limitutil.NewLimiter()
 
 	configuration := configutil.GetConfig()
 
