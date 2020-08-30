@@ -1,4 +1,4 @@
-import { createEvent, createStore, sample, createEffect, merge } from 'effector';
+import { createEvent, createStore, sample, createEffect } from 'effector';
 import { updateCharts } from './update';
 import { $stats } from '../stats';
 import { $selectedRange, selectRange } from '../segmented_control';

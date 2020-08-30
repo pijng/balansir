@@ -21,6 +21,7 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
     const decoder = new TextDecoder()
 
     let result = ''
+    /*eslint no-constant-condition: 0*/
     while(true) {
       const {done, value} = await reader.read()
       if (done) break
