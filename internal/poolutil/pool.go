@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -24,9 +25,8 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 //ServerPool ...
 type ServerPool struct {
-	mux        sync.RWMutex
 	ServerList []*serverutil.Server
-	Current    int
+	Current    int64
 }
 
 //EndpointChoice ...
@@ -160,20 +160,7 @@ func (pool *ServerPool) ClearPool() {
 
 //NextPool ...
 func (pool *ServerPool) NextPool() int {
-	var current int
-	pool.mux.Lock()
-	defer pool.mux.Unlock()
-	if (pool.Current + 1) > (len(pool.ServerList) - 1) {
-		pool.Current = 0
-		current = pool.Current
-	} else {
-		pool.Current = pool.Current + 1
-		current = pool.Current
-	}
-	if !pool.ServerList[current].GetAlive() {
-		return pool.NextPool()
-	}
-	return current
+	return int(atomic.AddInt64(&pool.Current, 1) % int64(len(pool.ServerList)))
 }
 
 //RedefineServerPool ...
