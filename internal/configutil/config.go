@@ -23,10 +23,10 @@ type Configuration struct {
 	RateLimit                bool        `json:"rate_limit"`
 	RatePerSecond            int         `json:"rate_per_second"`
 	RateBucket               int         `json:"rate_bucket"`
-	Timeout                  int         `json:"server_check_response_timeout"`
+	Timeout                  int         `json:"server_check_timeout"`
 	ReadTimeout              int         `json:"read_timeout"`
 	WriteTimeout             int         `json:"write_timeout"`
-	TransparentProxyMode     bool        `json:"transparent_proxy_mode"`
+	TransparentProxyMode     bool        `json:"transparent_proxy"`
 	Algorithm                string      `json:"balancing_algorithm"`
 	Cache                    bool        `json:"cache"`
 	CacheShardsAmount        int         `json:"cache_shards_amount"`

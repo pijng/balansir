@@ -323,7 +323,7 @@ func CacheEquals(cacheHash *string, incomingArgs *CacheClusterArgs) bool {
 }
 
 //TryServeFromCache ...
-func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
+func TryServeFromCache(w http.ResponseWriter, r *http.Request) error {
 	configuration := configutil.GetConfig()
 	if ok, _ := ContainsRule(r.URL.String(), configuration.CacheRules); ok {
 		cache := GetCluster()
@@ -331,7 +331,7 @@ func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
 		response, err := cache.Get(r.URL.String(), false)
 		if err == nil {
 			ServeFromCache(w, r, response)
-			return
+			return nil
 		}
 
 		hashedKey := cache.Hash.Sum(r.URL.String())
@@ -358,9 +358,11 @@ func TryServeFromCache(w http.ResponseWriter, r *http.Request) {
 			guard.Wait()
 			response, _ := cache.Get(r.URL.String(), false)
 			ServeFromCache(w, r, response)
-			return
+			return nil
 		}
 	}
+
+	return fmt.Errorf("%s shouldn't be cached", r.URL.Path)
 }
 
 //ContainsRule ...

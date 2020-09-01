@@ -55,8 +55,9 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if configuration.Cache {
-		cacheutil.TryServeFromCache(w, r)
-		return
+		if err := cacheutil.TryServeFromCache(w, r); err == nil {
+			return
+		}
 	}
 
 	if configuration.RateLimit {
