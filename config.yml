@@ -1,6 +1,8 @@
 server_list:
   - endpoint: 127.0.0.1:5000
     weight: 0.5
+  - endpoint: 127.0.0.1:5001
+    weight: 0.5
 connection_protocol: http
 autocert: false
 autocert_dir: ./certs
@@ -25,7 +27,7 @@ transparent_proxy: true
 balancing_algorithm: weighted-least-connections
 cache: true
 cache_shards_amount: 8
-cache_shard_size_mb: 128
+cache_shard_size: 128
 cache_algorithm: LFU
 cache_shard_exceed_fallback: false
 cache_background_update: true

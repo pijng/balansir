@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -34,7 +36,12 @@ func ReturnIPFromHost(host string) string {
 
 //RedirectTLS ...
 func RedirectTLS(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://"+ReturnPortFromHost(r.Host), http.StatusMovedPermanently)
+	ip := ReturnIPFromHost(r.Host)
+	TLSPort := strconv.Itoa(configutil.GetConfig().TLSPort)
+	host := net.JoinHostPort(ip, TLSPort)
+	target := url.URL{Scheme: "https", Host: host, Path: r.URL.Path, RawQuery: r.URL.RawQuery}
+
+	http.Redirect(w, r, target.String(), http.StatusTemporaryRedirect)
 }
 
 //AddRemoteAddrToRequest ...
