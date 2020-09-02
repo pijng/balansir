@@ -43,9 +43,9 @@ const Log = ($timestamp, $tag, $text, scrollID, isRendered, $tags, $searchInput)
       if (!isRendered) {
         clearTimeout(scrollID)
         scrollID = setTimeout(() => {
-          node.scrollIntoView()
+          node.scrollIntoView({behavior: 'smooth'})
           isRendered = true
-        }, 100)
+        }, 200)
       }
     })
 
