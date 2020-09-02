@@ -30,7 +30,7 @@ type Configuration struct {
 	Algorithm                string      `yaml:"balancing_algorithm"`
 	Cache                    bool        `yaml:"cache"`
 	CacheShardsAmount        int         `yaml:"cache_shards_amount"`
-	CacheShardSizeMb         int         `yaml:"cache_shard_size_mb"`
+	CacheShardSize           int         `yaml:"cache_shard_size"`
 	CacheAlgorithm           string      `yaml:"cache_algorithm"`
 	CacheShardExceedFallback bool        `yaml:"cache_shard_exceed_fallback"`
 	CacheBackgroundUpdate    bool        `yaml:"cache_background_update"`

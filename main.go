@@ -178,7 +178,7 @@ func fillConfiguration(file []byte) []error {
 	if configuration.Cache {
 		args := cacheutil.CacheClusterArgs{
 			ShardsAmount:     configuration.CacheShardsAmount,
-			MaxSize:          configuration.CacheShardSizeMb,
+			MaxSize:          configuration.CacheShardSize,
 			ExceedFallback:   configuration.CacheShardExceedFallback,
 			CacheAlgorithm:   configuration.CacheAlgorithm,
 			BackgroundUpdate: configuration.CacheBackgroundUpdate,
