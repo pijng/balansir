@@ -7,49 +7,49 @@ import (
 //Configuration ...
 type Configuration struct {
 	Mux                      sync.RWMutex
-	ServerList               []*Endpoint `json:"server_list"`
-	Protocol                 string      `json:"connection_protocol"`
-	SSLCertificate           string      `json:"ssl_certificate"`
-	SSLKey                   string      `json:"ssl_private_key"`
-	Port                     int         `json:"http_port"`
-	TLSPort                  int         `json:"https_port"`
-	Delay                    int         `json:"server_check_timer"`
-	SessionPersistence       bool        `json:"session_persistence"`
-	Autocert                 bool        `json:"autocert"`
-	AutocertHosts            []string    `json:"autocert_hosts"`
-	CertDir                  string      `json:"autocert_dir"`
-	SessionMaxAge            int         `json:"session_max_age"`
-	GzipResponse             bool        `json:"gzip_response"`
-	RateLimit                bool        `json:"rate_limit"`
-	RatePerSecond            int         `json:"rate_per_second"`
-	RateBucket               int         `json:"rate_bucket"`
-	Timeout                  int         `json:"server_check_timeout"`
-	ReadTimeout              int         `json:"read_timeout"`
-	WriteTimeout             int         `json:"write_timeout"`
-	TransparentProxyMode     bool        `json:"transparent_proxy"`
-	Algorithm                string      `json:"balancing_algorithm"`
-	Cache                    bool        `json:"cache"`
-	CacheShardsAmount        int         `json:"cache_shards_amount"`
-	CacheShardMaxSizeMb      int         `json:"cache_shard_max_size_mb"`
-	CacheAlgorithm           string      `json:"cache_algorithm"`
-	CacheShardExceedFallback bool        `json:"cache_shard_exceed_fallback"`
-	CacheBackgroundUpdate    bool        `json:"cache_background_update"`
-	CacheRules               []*Rule     `json:"cache_rules"`
-	ServeStatic              bool        `json:"serve_static"`
-	StaticFolder             string      `json:"static_folder"`
-	StaticFolderAlias        string      `json:"static_folder_alias"`
+	ServerList               []*Endpoint `yaml:"server_list"`
+	Protocol                 string      `yaml:"connection_protocol"`
+	SSLCertificate           string      `yaml:"ssl_certificate"`
+	SSLKey                   string      `yaml:"ssl_private_key"`
+	Port                     int         `yaml:"http_port"`
+	TLSPort                  int         `yaml:"tls_port"`
+	Delay                    int         `yaml:"server_check_timer"`
+	SessionPersistence       bool        `yaml:"session_persistence"`
+	Autocert                 bool        `yaml:"autocert"`
+	AutocertHosts            []string    `yaml:"autocert_hosts"`
+	CertDir                  string      `yaml:"autocert_dir"`
+	SessionMaxAge            int         `yaml:"session_max_age"`
+	GzipResponse             bool        `yaml:"gzip_response"`
+	RateLimit                bool        `yaml:"rate_limit"`
+	RatePerSecond            int         `yaml:"rate_per_second"`
+	RateBucket               int         `yaml:"rate_bucket"`
+	Timeout                  int         `yaml:"server_check_timeout"`
+	ReadTimeout              int         `yaml:"read_timeout"`
+	WriteTimeout             int         `yaml:"write_timeout"`
+	TransparentProxy         bool        `yaml:"transparent_proxy"`
+	Algorithm                string      `yaml:"balancing_algorithm"`
+	Cache                    bool        `yaml:"cache"`
+	CacheShardsAmount        int         `yaml:"cache_shards_amount"`
+	CacheShardSizeMb         int         `yaml:"cache_shard_size_mb"`
+	CacheAlgorithm           string      `yaml:"cache_algorithm"`
+	CacheShardExceedFallback bool        `yaml:"cache_shard_exceed_fallback"`
+	CacheBackgroundUpdate    bool        `yaml:"cache_background_update"`
+	CacheRules               []*Rule     `yaml:"cache_rules"`
+	ServeStatic              bool        `yaml:"serve_static"`
+	StaticFolder             string      `yaml:"static_folder"`
+	StaticAlias              string      `yaml:"static_alias"`
 }
 
 //Endpoint ...
 type Endpoint struct {
-	URL    string  `json:"endpoint"`
-	Weight float64 `json:"weight"`
+	URL    string  `yaml:"endpoint"`
+	Weight float64 `yaml:"weight"`
 }
 
 //Rule ...
 type Rule struct {
-	Path string `json:"path"`
-	TTL  string `json:"ttl"`
+	Path string `yaml:"path"`
+	TTL  string `yaml:"ttl"`
 }
 
 var config *Configuration

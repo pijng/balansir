@@ -29,18 +29,18 @@ type objects struct {
 
 //Stats ...
 type Stats struct {
-	Timestamp            int64       `json:"timestamp"`
-	RequestsPerSecond    float64     `json:"requests_per_second"`
-	AverageResponseTime  float64     `json:"average_response_time"`
-	MemoryUsage          int64       `json:"memory_usage"`
-	ErrorsCount          int64       `json:"errors_count"`
-	Port                 int         `json:"http_port"`
-	TLSPort              int         `json:"https_port"`
-	Endpoints            []*endpoint `json:"endpoints"`
-	TransparentProxyMode bool        `json:"transparent_proxy_mode"`
-	Algorithm            string      `json:"balancing_algorithm"`
-	Cache                bool        `json:"cache"`
-	CacheInfo            cacheInfo   `json:"cache_info"`
+	Timestamp           int64       `json:"timestamp"`
+	RequestsPerSecond   float64     `json:"requests_per_second"`
+	AverageResponseTime float64     `json:"average_response_time"`
+	MemoryUsage         int64       `json:"memory_usage"`
+	ErrorsCount         int64       `json:"errors_count"`
+	Port                int         `json:"http_port"`
+	TLSPort             int         `json:"https_port"`
+	Endpoints           []*endpoint `json:"endpoints"`
+	TransparentProxy    bool        `json:"transparent_proxy"`
+	Algorithm           string      `json:"balancing_algorithm"`
+	Cache               bool        `json:"cache"`
+	CacheInfo           cacheInfo   `json:"cache_info"`
 }
 
 type endpoint struct {
@@ -128,17 +128,17 @@ func getBalansirStats() Stats {
 	}
 
 	stats := Stats{
-		Timestamp:            time.Now().Unix() * 1000,
-		RequestsPerSecond:    metrics.rateCounter.RateValue(),
-		AverageResponseTime:  metrics.rateCounter.ResponseValue(),
-		MemoryUsage:          getRSSUsage(),
-		ErrorsCount:          getErrorsCount(),
-		Port:                 metrics.configuration.Port,
-		TLSPort:              metrics.configuration.TLSPort,
-		Endpoints:            endpoints,
-		TransparentProxyMode: metrics.configuration.TransparentProxyMode,
-		Algorithm:            metrics.configuration.Algorithm,
-		Cache:                metrics.configuration.Cache,
+		Timestamp:           time.Now().Unix() * 1000,
+		RequestsPerSecond:   metrics.rateCounter.RateValue(),
+		AverageResponseTime: metrics.rateCounter.ResponseValue(),
+		MemoryUsage:         getRSSUsage(),
+		ErrorsCount:         getErrorsCount(),
+		Port:                metrics.configuration.Port,
+		TLSPort:             metrics.configuration.TLSPort,
+		Endpoints:           endpoints,
+		TransparentProxy:    metrics.configuration.TransparentProxy,
+		Algorithm:           metrics.configuration.Algorithm,
+		Cache:               metrics.configuration.Cache,
 	}
 
 	if metrics.configuration.Cache {

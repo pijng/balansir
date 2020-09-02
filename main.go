@@ -14,7 +14,6 @@ import (
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -25,6 +24,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
+	"gopkg.in/yaml.v2"
 )
 
 func newServeMux() *http.ServeMux {
@@ -82,7 +82,7 @@ func loadBalance(w http.ResponseWriter, r *http.Request) {
 		defer rateCounter.ResponseCount(rtStart)
 	}
 
-	if configuration.TransparentProxyMode {
+	if configuration.TransparentProxy {
 		r = helpers.AddRemoteAddrToRequest(r)
 	}
 
@@ -158,8 +158,8 @@ func fillConfiguration(file []byte) []error {
 	defer serverPoolGuard.Done()
 
 	var errs []error
-	if err := json.Unmarshal(file, &configuration); err != nil {
-		errs = append(errs, errors.New(fmt.Sprint("config.json malformed: ", err)))
+	if err := yaml.Unmarshal(file, &configuration); err != nil {
+		errs = append(errs, errors.New(fmt.Sprint("config.yml malformed: ", err)))
 		return errs
 	}
 
@@ -178,7 +178,7 @@ func fillConfiguration(file []byte) []error {
 	if configuration.Cache {
 		args := cacheutil.CacheClusterArgs{
 			ShardsAmount:     configuration.CacheShardsAmount,
-			MaxSize:          configuration.CacheShardMaxSizeMb,
+			MaxSize:          configuration.CacheShardSizeMb,
 			ExceedFallback:   configuration.CacheShardExceedFallback,
 			CacheAlgorithm:   configuration.CacheAlgorithm,
 			BackgroundUpdate: configuration.CacheBackgroundUpdate,
@@ -201,7 +201,7 @@ func fillConfiguration(file []byte) []error {
 }
 
 func configWatch() {
-	file, err := ioutil.ReadFile("config.json")
+	file, err := ioutil.ReadFile("config.yml")
 	if err != nil {
 		logutil.Error(fmt.Sprintf("Error reading configuration file: %v", err))
 	}
@@ -209,7 +209,7 @@ func configWatch() {
 	fileHash := hex.EncodeToString(md[:16])
 	var fileHashNext string
 	for {
-		file, _ = ioutil.ReadFile("config.json")
+		file, _ = ioutil.ReadFile("config.yml")
 		md = md5.Sum(file)
 		fileHashNext = hex.EncodeToString(md[:16])
 		if fileHash != fileHashNext {
@@ -310,7 +310,7 @@ func main() {
 	logutil.Init()
 	logutil.Info("Booting up...")
 
-	file, err := ioutil.ReadFile("config.json")
+	file, err := ioutil.ReadFile("config.yml")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error reading configuration file: %v", err))
 		logutil.Fatal("Shutdown")

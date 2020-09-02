@@ -11,7 +11,7 @@ import (
 
 //IsStatic ...
 func IsStatic(URLpath string) bool {
-	staticFolder := configutil.GetConfig().StaticFolderAlias
+	staticFolder := configutil.GetConfig().StaticAlias
 	return strings.Contains(URLpath, staticFolder)
 }
 
@@ -29,7 +29,7 @@ func TryServeStatic(w http.ResponseWriter, r *http.Request) error {
 }
 
 func getFileMeta(URLpath string) (string, string, error) {
-	alias := configutil.GetConfig().StaticFolderAlias
+	alias := configutil.GetConfig().StaticAlias
 	staticFolder := configutil.GetConfig().StaticFolder
 
 	filePath := strings.Split(URLpath, alias)[1]
