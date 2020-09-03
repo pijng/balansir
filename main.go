@@ -46,6 +46,9 @@ func serversCheck() {
 	}
 }
 
+var serverPoolHash string
+var cacheHash string
+
 func fillConfiguration(file []byte) []error {
 	configuration := configutil.GetConfig()
 	configuration.Guard.Add(1)
@@ -128,9 +131,6 @@ func configWatch() {
 	}
 }
 
-var serverPoolHash string
-var cacheHash string
-
 func main() {
 	logutil.Init()
 	logutil.Info("Booting up...")
@@ -138,7 +138,7 @@ func main() {
 	file, err := ioutil.ReadFile("config.yml")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error reading configuration file: %v", err))
-		logutil.Fatal("Shutdown")
+		logutil.Fatal("Balansir stopped!")
 		os.Exit(1)
 	}
 
@@ -147,7 +147,7 @@ func main() {
 		for i := 0; i < len(errs); i++ {
 			logutil.Fatal(fmt.Sprintf("\t %v", errs[i]))
 			if len(errs)-1 == i {
-				logutil.Fatal("Shutdown")
+				logutil.Fatal("Balansir stopped!")
 				os.Exit(1)
 			}
 		}
@@ -174,5 +174,4 @@ func main() {
 	} else {
 		listenutil.Serve()
 	}
-
 }

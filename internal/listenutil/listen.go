@@ -6,11 +6,14 @@ import (
 	"balansir/internal/helpers"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
@@ -36,6 +39,9 @@ func tlsConfig() *tls.Config {
 func ServeTLSWithAutocert() {
 	configuration := configutil.GetConfig()
 
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
 	certManager := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(configuration.AutocertHosts...),
@@ -52,12 +58,10 @@ func ServeTLSWithAutocert() {
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 
-		err := server.ListenAndServe()
-		if err != nil {
-			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
-			logutil.Fatal("Shutdown")
-			os.Exit(1)
-		}
+		logutil.Fatal(server.ListenAndServe())
+
+		<-done
+		gracefulShutdown(done, server)
 	}()
 
 	TLSConfig := tlsConfig()
@@ -72,18 +76,21 @@ func ServeTLSWithAutocert() {
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
+	go func() {
+		logutil.Fatal(TLSServer.ListenAndServeTLS("", ""))
+	}()
 	logutil.Notice("Balansir is up!")
-	err := TLSServer.ListenAndServeTLS("", "")
-	if err != nil {
-		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown")
-		os.Exit(1)
-	}
+
+	<-done
+	gracefulShutdown(done, TLSServer)
 }
 
 //ServeTLSWithSelfSignedCerts ...
 func ServeTLSWithSelfSignedCerts() {
 	configuration := configutil.GetConfig()
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		server := &http.Server{
@@ -93,12 +100,10 @@ func ServeTLSWithSelfSignedCerts() {
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 
-		err := server.ListenAndServe()
-		if err != nil {
-			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
-			logutil.Fatal("Shutdown")
-			os.Exit(1)
-		}
+		logutil.Fatal(server.ListenAndServe())
+
+		<-done
+		gracefulShutdown(done, server)
 	}()
 
 	TLSServer := &http.Server{
@@ -110,25 +115,48 @@ func ServeTLSWithSelfSignedCerts() {
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
+	go func() {
+		logutil.Fatal(TLSServer.ListenAndServeTLS(configuration.SSLCertificate, configuration.SSLKey))
+	}()
 	logutil.Notice("Balansir is up!")
-	if err := TLSServer.ListenAndServeTLS(configuration.SSLCertificate, configuration.SSLKey); err != nil {
-		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown")
-		os.Exit(1)
-	}
+
+	<-done
+	gracefulShutdown(done, TLSServer)
 }
 
 //Serve ...
 func Serve() {
 	configuration := configutil.GetConfig()
 
-	server := http.Server{
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	server := &http.Server{
 		Addr:         ":" + strconv.Itoa(configuration.Port),
 		Handler:      balanceutil.NewServeMux(),
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
+	go func() {
+		logutil.Fatal(server.ListenAndServe())
+	}()
 	logutil.Notice("Balansir is up!")
-	logutil.Fatal(server.ListenAndServe())
+
+	<-done
+	gracefulShutdown(done, server)
+}
+
+func gracefulShutdown(signal chan os.Signal, server *http.Server) {
+	logutil.Notice("Shutting down Balansir...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer func() {
+		cancel()
+	}()
+
+	if err := server.Shutdown(ctx); err != nil {
+		logutil.Fatal(fmt.Sprintf("Balansir shutdown failed: %+v", err))
+	}
+	logutil.Notice("Balansir stopped!")
 }
