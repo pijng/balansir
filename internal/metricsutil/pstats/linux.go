@@ -25,5 +25,5 @@ func GetRSSInfoLinux() (int64, error) {
 		return 0, err
 	}
 
-	return int64(int(rss)*os.Getpagesize()) / 1024, nil
+	return int64(int(rss)*os.Getpagesize()) / 1024 / 1024, nil
 }
