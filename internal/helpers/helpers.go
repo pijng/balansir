@@ -43,7 +43,7 @@ func RedirectTLS(w http.ResponseWriter, r *http.Request) {
 	TLSPort := strconv.Itoa(configutil.GetConfig().TLSPort)
 	host := net.JoinHostPort(ip, TLSPort)
 	target := url.URL{Scheme: "https", Host: host, Path: r.URL.Path, RawQuery: r.URL.RawQuery}
-
+	logutil.Warning(target.String())
 	http.Redirect(w, r, target.String(), http.StatusTemporaryRedirect)
 }
 

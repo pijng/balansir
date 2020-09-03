@@ -67,6 +67,7 @@ func ServeTLSWithAutocert() {
 		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
 		Handler:      balanceutil.NewServeMux(),
 		TLSConfig:    TLSConfig,
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
@@ -84,15 +85,6 @@ func ServeTLSWithAutocert() {
 func ServeTLSWithSelfSignedCerts() {
 	configuration := configutil.GetConfig()
 
-	server := &http.Server{
-		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
-		Handler:      balanceutil.NewServeMux(),
-		TLSConfig:    tlsConfig(),
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
-		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
-	}
-
 	go func() {
 		server := &http.Server{
 			Addr:         ":" + strconv.Itoa(configuration.Port),
@@ -109,8 +101,17 @@ func ServeTLSWithSelfSignedCerts() {
 		}
 	}()
 
+	TLSServer := &http.Server{
+		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
+		Handler:      balanceutil.NewServeMux(),
+		TLSConfig:    tlsConfig(),
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
+	}
+
 	logutil.Notice("Balansir is up!")
-	if err := server.ListenAndServeTLS(configuration.SSLCertificate, configuration.SSLKey); err != nil {
+	if err := TLSServer.ListenAndServeTLS(configuration.SSLCertificate, configuration.SSLKey); err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
 		logutil.Fatal("Shutdown")
 		os.Exit(1)
