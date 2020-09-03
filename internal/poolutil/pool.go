@@ -180,7 +180,7 @@ func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard
 			}
 		}
 
-		serverURL, err := url.Parse(configuration.Protocol + "://" + strings.TrimSpace(server.URL))
+		serverURL, err := url.Parse("http://" + strings.TrimSpace(server.URL))
 		if err != nil {
 			return nil, err
 		}
