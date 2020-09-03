@@ -27,7 +27,7 @@ func ReturnPortFromHost(host string) string {
 //ReturnIPFromHost ...
 func ReturnIPFromHost(host string) string {
 	ip, _, err := net.SplitHostPort(host)
-	if err != nil {
+	if err != nil && err.Error() != "missing port in address" {
 		logutil.Warning(err)
 		return ""
 	}
