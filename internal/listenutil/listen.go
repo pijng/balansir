@@ -16,6 +16,20 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+func tlsConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
+	}
+}
+
 //ServeTLSWithAutocert ...
 func ServeTLSWithAutocert() {
 	configuration := configutil.GetConfig()
@@ -44,11 +58,8 @@ func ServeTLSWithAutocert() {
 		}
 	}()
 
-	TLSConfig := &tls.Config{
-		GetCertificate:           certManager.GetCertificate,
-		PreferServerCipherSuites: true,
-		CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
-	}
+	TLSConfig := tlsConfig()
+	TLSConfig.GetCertificate = certManager.GetCertificate
 
 	TLSServer := &http.Server{
 		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
@@ -71,22 +82,10 @@ func ServeTLSWithAutocert() {
 func ServeTLSWithSelfSignedCerts() {
 	configuration := configutil.GetConfig()
 
-	TLSConfig := &tls.Config{
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		},
-	}
-
 	server := &http.Server{
 		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
 		Handler:      balanceutil.NewServeMux(),
-		TLSConfig:    TLSConfig,
+		TLSConfig:    tlsConfig(),
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
@@ -126,6 +125,7 @@ func Serve() {
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
+
 	logutil.Notice("Balansir is up!")
 	logutil.Fatal(server.ListenAndServe())
 }
