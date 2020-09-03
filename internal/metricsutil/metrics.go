@@ -5,6 +5,7 @@ import (
 	"balansir/internal/configutil"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil/pstats"
+	"balansir/internal/poolutil"
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"encoding/json"
@@ -165,6 +166,14 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logutil.Error(err)
 	}
+}
+
+//MetricsPolling ...
+func MetricsPolling() {
+	configuration := configutil.GetConfig()
+	pool := poolutil.GetPool()
+	rateCounter := rateutil.GetRateCounter()
+	InitMetricsMeta(rateCounter, configuration, pool.ServerList)
 }
 
 func getRSSUsage() int64 {

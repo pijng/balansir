@@ -1,118 +1,25 @@
 package main
 
 import (
-	"balansir/internal/balanceutil"
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
 	"balansir/internal/limitutil"
+	"balansir/internal/listenutil"
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/rateutil"
-	"balansir/internal/staticutil"
 	"crypto/md5"
-	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"strconv"
-	"sync"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 )
-
-func newServeMux() *http.ServeMux {
-	sm := http.NewServeMux()
-	metricsPolling()
-	sm.HandleFunc("/", loadBalance)
-	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
-	sm.HandleFunc("/balansir/logs", metricsutil.Metrics)
-	sm.HandleFunc("/balansir/logs/collected_logs", metricsutil.CollectedLogs)
-	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
-	sm.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
-	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
-	return sm
-}
-
-func loadBalance(w http.ResponseWriter, r *http.Request) {
-	configurationGuard.Wait()
-	configuration := configutil.GetConfig()
-
-	if configuration.ServeStatic {
-		if staticutil.IsStatic(r.URL.Path) {
-			err := staticutil.TryServeStatic(w, r)
-			if err == nil {
-				return
-			}
-			logutil.Warning(err)
-		}
-	}
-
-	if configuration.Cache {
-		if err := cacheutil.TryServeFromCache(w, r); err == nil {
-			return
-		}
-	}
-
-	if configuration.RateLimit {
-		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
-		limiter := visitors.GetVisitor(ip, configuration)
-		if !limiter.Allow() {
-			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
-			return
-		}
-	}
-
-	pool := poolutil.GetPool()
-	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
-	if len(availableServers) == 0 {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if r.Header.Get("X-Balansir-Background-Update") == "" {
-		rateCounter.RateIncrement()
-		rtStart := time.Now()
-		defer rateCounter.ResponseCount(rtStart)
-	}
-
-	if configuration.TransparentProxy {
-		r = helpers.AddRemoteAddrToRequest(r)
-	}
-
-	if configuration.SessionPersistence {
-		cookieHash, _ := r.Cookie("_balansir_server_hash")
-		if cookieHash != nil {
-			endpoint, err := pool.GetServerByHash(cookieHash.Value)
-			if err != nil {
-				logutil.Warning(err)
-				return
-			}
-			endpoint.Proxy.ServeHTTP(w, r)
-			return
-		}
-	}
-
-	switch configuration.Algorithm {
-	case balanceutil.RoundRobinType:
-		balanceutil.RoundRobin(w, r)
-
-	case balanceutil.WeightedRoundRobinType:
-		balanceutil.WeightedRoundRobin(w, r)
-
-	case balanceutil.LeastConnectionsType:
-		balanceutil.LeastConnections(w, r)
-
-	case balanceutil.WeightedLeastConnectionsType:
-		balanceutil.WeightedLeastConnections(w, r)
-	}
-}
 
 func serversCheck() {
 	configuration := configutil.GetConfig()
@@ -121,7 +28,7 @@ func serversCheck() {
 	for {
 		select {
 		case <-timer.C:
-			serverPoolGuard.Wait()
+			pool.Guard.Wait()
 			inActive := 0
 			for _, server := range pool.ServerList {
 				active := server.CheckAlive(&configuration.Timeout)
@@ -139,23 +46,17 @@ func serversCheck() {
 	}
 }
 
-func metricsPolling() {
-	configuration := configutil.GetConfig()
-	pool := poolutil.GetPool()
-	metricsutil.InitMetricsMeta(rateCounter, configuration, pool.ServerList)
-}
-
 func fillConfiguration(file []byte) []error {
-	configurationGuard.Add(1)
-	defer configurationGuard.Done()
-
 	configuration := configutil.GetConfig()
+	configuration.Guard.Add(1)
+	defer configuration.Guard.Done()
 
 	configuration.Mux.Lock()
 	defer configuration.Mux.Unlock()
 
-	serverPoolGuard.Add(1)
-	defer serverPoolGuard.Done()
+	pool := poolutil.GetPool()
+	pool.Guard.Add(1)
+	defer pool.Guard.Done()
 
 	var errs []error
 	if err := yaml.Unmarshal(file, &configuration); err != nil {
@@ -163,10 +64,8 @@ func fillConfiguration(file []byte) []error {
 		return errs
 	}
 
-	pool := poolutil.GetPool()
-
 	if !helpers.ServerPoolsEquals(&serverPoolHash, configuration.ServerList) {
-		newPool, err := poolutil.RedefineServerPool(configuration, &serverPoolGuard)
+		newPool, err := poolutil.RedefineServerPool(configuration, &pool.Guard)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -196,6 +95,7 @@ func fillConfiguration(file []byte) []error {
 		}
 	}
 
+	rateCounter := rateutil.GetRateCounter()
 	metricsutil.InitMetricsMeta(rateCounter, configuration, pool.ServerList)
 	return errs
 }
@@ -228,70 +128,8 @@ func configWatch() {
 	}
 }
 
-func listenAndServeTLSWithAutocert() {
-	configuration := configutil.GetConfig()
-
-	certManager := &autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(configuration.AutocertHosts...),
-		Cache:      autocert.DirCache(configuration.CertDir),
-	}
-
-	server := &http.Server{
-		Addr: ":" + strconv.Itoa(configuration.TLSPort),
-		TLSConfig: &tls.Config{
-			GetCertificate: certManager.GetCertificate,
-		},
-		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
-	}
-
-	go func() {
-		server := http.Server{
-			Addr:         ":" + strconv.Itoa(configuration.Port),
-			Handler:      http.HandlerFunc(helpers.RedirectTLS),
-			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
-			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
-		}
-		logutil.Fatal(server.ListenAndServe())
-		os.Exit(1)
-	}()
-
-	logutil.Notice("Balansir is up!")
-	err := server.ListenAndServeTLS("", "")
-	if err != nil {
-		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown")
-		os.Exit(1)
-	}
-}
-
-func listenAndServeTLSWithSelfSignedCerts() {
-	configuration := configutil.GetConfig()
-	go func() {
-		server := http.Server{
-			Addr:         ":" + strconv.Itoa(configuration.Port),
-			Handler:      http.HandlerFunc(helpers.RedirectTLS),
-			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
-			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
-		}
-		logutil.Fatal(server.ListenAndServe())
-	}()
-
-	logutil.Notice("Balansir is up!")
-	if err := http.ListenAndServeTLS(":"+strconv.Itoa(configuration.TLSPort), configuration.SSLCertificate, configuration.SSLKey, newServeMux()); err != nil {
-		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
-		logutil.Fatal("Shutdown")
-		os.Exit(1)
-	}
-}
-
-var serverPoolGuard sync.WaitGroup
-var configurationGuard sync.WaitGroup
 var serverPoolHash string
 var cacheHash string
-var visitors *limitutil.Limiter
-var rateCounter *rateutil.Rate
 
 func main() {
 	logutil.Init()
@@ -318,32 +156,23 @@ func main() {
 	go serversCheck()
 	go configWatch()
 
-	visitors = limitutil.NewLimiter()
-
 	configuration := configutil.GetConfig()
 
 	if configuration.RateLimit {
+		visitors := limitutil.GetLimiter()
 		go visitors.CleanOldVisitors()
 	}
 
-	rateCounter = rateutil.NewRateCounter()
+	rateutil.GetRateCounter()
 
 	if configuration.Protocol == "https" {
-
 		if configuration.Autocert {
-			listenAndServeTLSWithAutocert()
+			listenutil.ServeTLSWithAutocert()
 		} else {
-			listenAndServeTLSWithSelfSignedCerts()
+			listenutil.ServeTLSWithSelfSignedCerts()
 		}
 	} else {
-		server := http.Server{
-			Addr:         ":" + strconv.Itoa(configuration.Port),
-			Handler:      newServeMux(),
-			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
-			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
-		}
-		logutil.Notice("Balansir is up!")
-		logutil.Fatal(server.ListenAndServe())
+		listenutil.Serve()
 	}
 
 }

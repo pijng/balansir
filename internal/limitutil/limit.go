@@ -19,11 +19,16 @@ type Limiter struct {
 	list map[string]*visitor
 }
 
-//NewLimiter ...
-func NewLimiter() *Limiter {
-	limiter := &Limiter{
-		list: make(map[string]*visitor),
-	}
+var limiter *Limiter
+var once sync.Once
+
+//GetLimiter ...
+func GetLimiter() *Limiter {
+	once.Do(func() {
+		limiter = &Limiter{
+			list: make(map[string]*visitor),
+		}
+	})
 	return limiter
 }
 

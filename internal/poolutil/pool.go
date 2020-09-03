@@ -25,6 +25,7 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 //ServerPool ...
 type ServerPool struct {
+	Guard      sync.WaitGroup
 	ServerList []*serverutil.Server
 	Current    int64
 }

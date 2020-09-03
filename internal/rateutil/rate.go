@@ -2,6 +2,7 @@ package rateutil
 
 import (
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -12,12 +13,17 @@ type Rate struct {
 	responsemap []int64
 }
 
-//NewRateCounter ...
-func NewRateCounter() *Rate {
-	rate := &Rate{
-		ratemap:     make([]int64, 2),
-		responsemap: make([]int64, 2),
-	}
+var rate *Rate
+var once sync.Once
+
+//GetRateCounter ...
+func GetRateCounter() *Rate {
+	once.Do(func() {
+		rate = &Rate{
+			ratemap:     make([]int64, 2),
+			responsemap: make([]int64, 2),
+		}
+	})
 
 	go func() {
 		timer := time.NewTicker(1 * time.Second)

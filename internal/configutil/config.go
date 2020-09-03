@@ -7,6 +7,7 @@ import (
 //Configuration ...
 type Configuration struct {
 	Mux                      sync.RWMutex
+	Guard                    sync.WaitGroup
 	ServerList               []*Endpoint `yaml:"server_list"`
 	Protocol                 string      `yaml:"connection_protocol"`
 	SSLCertificate           string      `yaml:"ssl_certificate"`

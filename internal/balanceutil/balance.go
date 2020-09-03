@@ -1,11 +1,17 @@
 package balanceutil
 
 import (
+	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
 	"balansir/internal/helpers"
+	"balansir/internal/limitutil"
 	"balansir/internal/logutil"
+	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
+	"balansir/internal/rateutil"
+	"balansir/internal/staticutil"
 	"net/http"
+	"time"
 )
 
 const (
@@ -76,4 +82,95 @@ func WeightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	endpoint.ActiveConnections.Add(1)
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 	endpoint.ActiveConnections.Add(-1)
+}
+
+//NewServeMux ...
+func NewServeMux() *http.ServeMux {
+	sm := http.NewServeMux()
+	metricsutil.MetricsPolling()
+	sm.HandleFunc("/", LoadBalance)
+	sm.HandleFunc("/balansir/metrics", metricsutil.Metrics)
+	sm.HandleFunc("/balansir/logs", metricsutil.Metrics)
+	sm.HandleFunc("/balansir/logs/collected_logs", metricsutil.CollectedLogs)
+	sm.HandleFunc("/balansir/metrics/stats", metricsutil.MetrictStats)
+	sm.HandleFunc("/balansir/metrics/collected_stats", metricsutil.CollectedStats)
+	sm.Handle("/content/", http.StripPrefix("/content/", http.FileServer(http.Dir("content"))))
+	return sm
+}
+
+//LoadBalance ...
+func LoadBalance(w http.ResponseWriter, r *http.Request) {
+	configuration := configutil.GetConfig()
+	configuration.Guard.Wait()
+
+	if configuration.ServeStatic {
+		if staticutil.IsStatic(r.URL.Path) {
+			err := staticutil.TryServeStatic(w, r)
+			if err == nil {
+				return
+			}
+			logutil.Warning(err)
+		}
+	}
+
+	if configuration.Cache {
+		if err := cacheutil.TryServeFromCache(w, r); err == nil {
+			return
+		}
+	}
+
+	if configuration.RateLimit {
+		ip := helpers.ReturnIPFromHost(r.RemoteAddr)
+		visitors := limitutil.GetLimiter()
+		limiter := visitors.GetVisitor(ip, configuration)
+		if !limiter.Allow() {
+			http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
+			return
+		}
+	}
+
+	pool := poolutil.GetPool()
+	availableServers := poolutil.ExcludeUnavailableServers(pool.ServerList)
+	if len(availableServers) == 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if r.Header.Get("X-Balansir-Background-Update") == "" {
+		rateCounter := rateutil.GetRateCounter()
+		rateCounter.RateIncrement()
+		rtStart := time.Now()
+		defer rateCounter.ResponseCount(rtStart)
+	}
+
+	if configuration.TransparentProxy {
+		r = helpers.AddRemoteAddrToRequest(r)
+	}
+
+	if configuration.SessionPersistence {
+		cookieHash, _ := r.Cookie("_balansir_server_hash")
+		if cookieHash != nil {
+			endpoint, err := pool.GetServerByHash(cookieHash.Value)
+			if err != nil {
+				logutil.Warning(err)
+				return
+			}
+			endpoint.Proxy.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	switch configuration.Algorithm {
+	case RoundRobinType:
+		RoundRobin(w, r)
+
+	case WeightedRoundRobinType:
+		WeightedRoundRobin(w, r)
+
+	case LeastConnectionsType:
+		LeastConnections(w, r)
+
+	case WeightedLeastConnectionsType:
+		WeightedLeastConnections(w, r)
+	}
 }
