@@ -246,29 +246,24 @@ func listenAndServeTLSWithAutocert() {
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
 
-	port := configuration.Port
-
 	go func() {
-		metricsPolling()
-		err := http.ListenAndServe(
-			":"+strconv.Itoa(port),
-			certManager.HTTPHandler(newServeMux()),
-		)
-		if err != nil {
-			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
-			logutil.Fatal("Shutdown")
-			os.Exit(1)
+		server := http.Server{
+			Addr:         ":" + strconv.Itoa(configuration.Port),
+			Handler:      http.HandlerFunc(helpers.RedirectTLS),
+			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
+		logutil.Fatal(server.ListenAndServe())
+		os.Exit(1)
 	}()
 
+	logutil.Notice("Balansir is up!")
 	err := server.ListenAndServeTLS("", "")
 	if err != nil {
 		logutil.Fatal(fmt.Sprintf("Error starting TLS listener: %s", err))
 		logutil.Fatal("Shutdown")
 		os.Exit(1)
 	}
-
-	logutil.Notice("Balansir is up!")
 }
 
 func listenAndServeTLSWithSelfSignedCerts() {
