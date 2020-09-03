@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,7 @@ func ReturnPortFromHost(host string) string {
 //ReturnIPFromHost ...
 func ReturnIPFromHost(host string) string {
 	ip, _, err := net.SplitHostPort(host)
-	if err != nil && err.Error() != "missing port in address" {
+	if err != nil && !strings.Contains(err.Error(), "missing port in address") {
 		logutil.Warning(err)
 		return ""
 	}
