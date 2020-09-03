@@ -35,8 +35,13 @@ func ServeTLSWithAutocert() {
 			ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
-		logutil.Fatal(server.ListenAndServe())
-		os.Exit(1)
+
+		err := server.ListenAndServe()
+		if err != nil {
+			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
+			logutil.Fatal("Shutdown")
+			os.Exit(1)
+		}
 	}()
 
 	TLSConfig := &tls.Config{
@@ -95,8 +100,12 @@ func ServeTLSWithSelfSignedCerts() {
 			WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 		}
 
-		logutil.Fatal(server.ListenAndServe())
-		os.Exit(1)
+		err := server.ListenAndServe()
+		if err != nil {
+			logutil.Fatal(fmt.Sprintf("Error starting listener: %s", err))
+			logutil.Fatal("Shutdown")
+			os.Exit(1)
+		}
 	}()
 
 	logutil.Notice("Balansir is up!")
