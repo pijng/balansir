@@ -337,7 +337,7 @@ func TryServeFromCache(w http.ResponseWriter, r *http.Request) error {
 		hashedKey := cache.Hash.Sum(r.URL.String())
 		guard := cache.Queue.Get(hashedKey)
 		//If there is no queue for a given key – create queue and set release on timeout.
-		//Timeout should prevent situation when release won't be tri  ggered in modifyResponse
+		//Timeout should prevent situation when release won't be triggered in modifyResponse
 		//due to server timeouts
 		if guard == nil {
 			cache.Queue.Set(hashedKey)

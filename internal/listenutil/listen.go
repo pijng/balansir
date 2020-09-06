@@ -19,6 +19,10 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+const (
+	autocertDir = "./certs"
+)
+
 func tlsConfig() *tls.Config {
 	return &tls.Config{
 		MinVersion:               tls.VersionTLS12,
@@ -45,7 +49,7 @@ func ServeTLSWithAutocert() {
 	certManager := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(configuration.AutocertHosts...),
-		Cache:      autocert.DirCache(configuration.CertDir),
+		Cache:      autocert.DirCache(autocertDir),
 	}
 
 	go func() {

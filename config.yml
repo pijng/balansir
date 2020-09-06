@@ -1,11 +1,8 @@
 server_list:
   - endpoint: 127.0.0.1:5000
     weight: 0.5
-  - endpoint: 127.0.0.1:5001
-    weight: 0.5
 connection_protocol: http
 autocert: false
-autocert_dir: ./certs
 autocert_hosts:
   - example.com
   - anotherone.com

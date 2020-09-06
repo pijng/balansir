@@ -38,7 +38,7 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
       // at the same time. In that case the logs will have an invalid JSON format, so
       // `JSON.parse(result)` will throw an error. We re run the effect if that happens
       // to request collected logs again. This is a disgusting workaround, yet it does work
-      // and helps us to avoid additional memory allocation on the serve side to parse
+      // and helps us to avoid additional memory allocation on the server side to parse
       // collected logs.
       getCollectedStatsFx()
     }

@@ -31,11 +31,11 @@ const (
 const (
 	logDir  = "./log"
 	logPath = "./log/balansir.log"
-	jsonDir = "./log/dashboard"
+	jsonDir = "./log/.dashboard"
 	//JSONPath ...
-	JSONPath = "./log/dashboard/logs.json"
+	JSONPath = "./log/.dashboard/logs.json"
 	//StatsPath ...
-	StatsPath = "./log/dashboard/stats.json"
+	StatsPath = "./log/.dashboard/stats.json"
 )
 
 //JSONlog ...
@@ -70,7 +70,7 @@ func Init() {
 	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
 		err := os.Mkdir(jsonDir, os.ModePerm)
 		if err != nil {
-			log.Fatalf("failed to create './logs/dashboard' directory: %v", err)
+			log.Fatalf("failed to create './logs/.dashboard' directory: %v", err)
 		}
 	}
 

@@ -18,7 +18,6 @@ type Configuration struct {
 	SessionPersistence       bool        `yaml:"session_persistence"`
 	Autocert                 bool        `yaml:"autocert"`
 	AutocertHosts            []string    `yaml:"autocert_hosts"`
-	CertDir                  string      `yaml:"autocert_dir"`
 	SessionMaxAge            int         `yaml:"session_max_age"`
 	GzipResponse             bool        `yaml:"gzip_response"`
 	RateLimit                bool        `yaml:"rate_limit"`
