@@ -16,7 +16,7 @@ type Shard struct {
 	items       map[int][]byte
 	tail        int
 	mux         sync.RWMutex
-	maxSize     int
+	size        int
 	currentSize int
 	policy      *Meta
 }
@@ -28,12 +28,12 @@ type shardItem struct {
 }
 
 //CreateShard ...
-func CreateShard(maxSize int, cacheAlgorithm string) *Shard {
+func CreateShard(size int, cacheAlgorithm string) *Shard {
 	s := &Shard{
 		hashmap:     make(map[uint64]shardItem),
 		items:       make(map[int][]byte),
 		tail:        0,
-		maxSize:     maxSize,
+		size:        size,
 		currentSize: 0,
 	}
 
@@ -138,7 +138,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.hashmap[keyIndex].length)
 
-	if s.maxSize-s.currentSize <= pendingValueSize {
+	if s.size-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
@@ -156,7 +156,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.hashmap[keyIndex].length)
 
-	if s.maxSize-s.currentSize <= pendingValueSize {
+	if s.size-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
@@ -169,7 +169,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 func setToFallbackShard(hasher fnv64a, shards []*Shard, exactShard *Shard, hashedKey uint64, value []byte, TTL string) (err error) {
 	for i, shard := range shards {
 		shard.mux.Lock()
-		if shard.currentSize+len(value) < shard.maxSize {
+		if shard.currentSize+len(value) < shard.size {
 			shard.mux.Unlock()
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])

@@ -41,7 +41,7 @@ type CacheCluster struct {
 	shards           []*Shard
 	Hash             fnv64a
 	ShardsAmount     int
-	ShardMaxSize     int
+	ShardSize        int
 	Queue            *Queue
 	Hits             int64
 	Misses           int64
@@ -54,7 +54,7 @@ type CacheCluster struct {
 //CacheClusterArgs ...
 type CacheClusterArgs struct {
 	ShardsAmount     int
-	MaxSize          int
+	ShardSize        int
 	ExceedFallback   bool
 	CacheAlgorithm   string
 	BackgroundUpdate bool
@@ -71,7 +71,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 	cluster = &CacheCluster{
 		shards:         make([]*Shard, args.ShardsAmount),
 		ShardsAmount:   args.ShardsAmount,
-		ShardMaxSize:   args.MaxSize,
+		ShardSize:      args.ShardSize,
 		Queue:          NewQueue(),
 		exceedFallback: args.ExceedFallback,
 		cacheRules:     args.CacheRules,
@@ -83,7 +83,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 	}
 
 	for i := 0; i < args.ShardsAmount; i++ {
-		cluster.shards[i] = CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
+		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
 	}
 
 	go func() {
@@ -234,7 +234,7 @@ func (cluster *CacheCluster) GetHitRatio() float64 {
 func RedefineCache(args *CacheClusterArgs) error {
 	if cluster == nil {
 		cacheCluster := New(*args)
-		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
+		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
 		logutil.Info("Cache enabled")
 		cluster = cacheCluster
 		return nil
@@ -260,7 +260,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 	//increase shards amount
 	if cluster.ShardsAmount < args.ShardsAmount {
 		for i := 0; i < args.ShardsAmount-cluster.ShardsAmount; i++ {
-			shard := CreateShard(args.MaxSize*mbBytes, args.CacheAlgorithm)
+			shard := CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
 			newCluster.shards = append(newCluster.shards, shard)
 		}
 		newCluster.shards = append(newCluster.shards, cluster.shards...)
@@ -295,17 +295,17 @@ func RedefineCache(args *CacheClusterArgs) error {
 	} else {
 		newCluster.shards = cluster.shards
 		for i, shard := range newCluster.shards {
-			if shard.currentSize/mbBytes > args.MaxSize {
-				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.MaxSize, shard.currentSize/mbBytes)
+			if shard.currentSize/mbBytes > args.ShardSize {
+				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.ShardSize, shard.currentSize/mbBytes)
 			}
-			newCluster.shards[i].maxSize = args.MaxSize * mbBytes
+			newCluster.shards[i].maxSize = args.ShardSize * mbBytes
 		}
 	}
 
-	newCluster.ShardMaxSize = args.MaxSize
+	newCluster.ShardSize = args.ShardSize
 	newCluster.ShardsAmount = len(newCluster.shards)
 
-	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.MaxSize))
+	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
 	cluster = newCluster
 	return nil
 }
