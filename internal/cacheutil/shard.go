@@ -14,10 +14,10 @@ import (
 type Shard struct {
 	Hashmap     map[uint64]shardItem
 	Items       map[int][]byte
-	tail        int
+	Tail        int
 	mux         sync.RWMutex
 	size        int
-	currentSize int
+	CurrentSize int
 	policy      *Meta
 }
 
@@ -32,9 +32,9 @@ func CreateShard(size int, cacheAlgorithm string) *Shard {
 	s := &Shard{
 		Hashmap:     make(map[uint64]shardItem),
 		Items:       make(map[int][]byte),
-		tail:        0,
+		Tail:        0,
 		size:        size,
-		currentSize: 0,
+		CurrentSize: 0,
 	}
 
 	if cacheAlgorithm != "" {
@@ -59,7 +59,7 @@ func (s *Shard) set(hashedKey uint64, value []byte, TTL string) {
 
 func (s *Shard) push(value []byte) int {
 	dataLen := len(value)
-	index := s.tail
+	index := s.Tail
 	s.save(value, dataLen, index)
 	return index
 }
@@ -67,8 +67,8 @@ func (s *Shard) push(value []byte) int {
 func (s *Shard) save(value []byte, valueSize int, index int) {
 	s.Items[index] = value
 
-	s.tail++
-	s.currentSize += valueSize
+	s.Tail++
+	s.CurrentSize += valueSize
 }
 
 func (s *Shard) get(hashedKey uint64) ([]byte, error) {
@@ -93,7 +93,7 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 		s.policy.mux.Unlock()
 	}
 
-	s.currentSize -= valueSize
+	s.CurrentSize -= valueSize
 }
 
 func (s *Shard) update(timestamp int64, updater *Updater) {
@@ -138,7 +138,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
-	if s.size-s.currentSize <= pendingValueSize {
+	if s.size-s.CurrentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
@@ -156,7 +156,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
-	if s.size-s.currentSize <= pendingValueSize {
+	if s.size-s.CurrentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
@@ -169,7 +169,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 func setToFallbackShard(hasher fnv64a, shards []*Shard, exactShard *Shard, hashedKey uint64, value []byte, TTL string) (err error) {
 	for i, shard := range shards {
 		shard.mux.Lock()
-		if shard.currentSize+len(value) < shard.size {
+		if shard.CurrentSize+len(value) < shard.size {
 			shard.mux.Unlock()
 			md := md5.Sum(value)
 			valueHash := hex.EncodeToString(md[:16])

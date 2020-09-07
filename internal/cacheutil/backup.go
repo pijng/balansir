@@ -102,6 +102,8 @@ func RestoreShards(cluster *CacheCluster, backup Backup, shards []*Shard) []erro
 				errs = append(errs, err)
 				continue
 			}
+			shard.Tail = backupShard.Tail
+			shard.CurrentSize = backupShard.CurrentSize
 
 			if cluster.backgroundUpdate {
 				cluster.updater.keyStorage.hashmap[key] = backup.KsHashMap[key]
@@ -117,7 +119,7 @@ func RestoreShard(key uint64, item shardItem, value []byte, shard *Shard) error 
 	if item.Length >= shard.size {
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(item.Length)/1024/1024), shard.size/1024/1024)
 	}
-	if shard.currentSize+item.Length >= shard.size {
+	if shard.CurrentSize+item.Length >= shard.size {
 		return errors.New("potential exceeding of shard max capacity")
 	}
 

@@ -125,7 +125,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.size/1024/1024)
 	}
 
-	if shard.currentSize+len(value) >= shard.size {
+	if shard.CurrentSize+len(value) >= shard.size {
 		shard.mux.Unlock()
 
 		if shard.policy != nil {
@@ -282,7 +282,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 
 		for _, shard := range cluster.shards {
 			if deletedShards != diff {
-				if shard.currentSize > 0 {
+				if shard.CurrentSize > 0 {
 					nonEmptyShards++
 					continue
 				}
@@ -303,8 +303,8 @@ func RedefineCache(args *CacheClusterArgs) error {
 	} else {
 		newCluster.shards = cluster.shards
 		for i, shard := range newCluster.shards {
-			if shard.currentSize/mbBytes > args.ShardSize {
-				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.ShardSize, shard.currentSize/mbBytes)
+			if shard.CurrentSize/mbBytes > args.ShardSize {
+				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.ShardSize, shard.CurrentSize/mbBytes)
 			}
 			newCluster.shards[i].size = args.ShardSize * mbBytes
 		}
