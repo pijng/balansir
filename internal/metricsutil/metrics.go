@@ -146,7 +146,7 @@ func getBalansirStats() Stats {
 		stats.CacheInfo = cacheInfo{
 			HitRatio:     metrics.cache.GetHitRatio(),
 			ShardsAmount: metrics.cache.ShardsAmount,
-			ShardSize:    metrics.cache.ShardMaxSize,
+			ShardSize:    metrics.cache.ShardSize,
 			Hits:         atomic.LoadInt64(&metrics.cache.Hits),
 			Misses:       atomic.LoadInt64(&metrics.cache.Misses),
 		}

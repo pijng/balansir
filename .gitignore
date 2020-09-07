@@ -6,3 +6,4 @@ server.key
 /log
 balansir
 settings.json
+.cache.gob

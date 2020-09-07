@@ -5,12 +5,14 @@ import (
 	"balansir/internal/logutil"
 	"bytes"
 	"crypto/md5"
+	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -38,6 +40,8 @@ func (f fnv64a) Sum(key string) uint64 {
 
 //CacheCluster ...
 type CacheCluster struct {
+	encoder          *gob.Encoder
+	backup           *os.File
 	shards           []*Shard
 	Hash             fnv64a
 	ShardsAmount     int
@@ -86,6 +90,8 @@ func New(args CacheClusterArgs) *CacheCluster {
 		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
 	}
 
+	go RestoreCache(cluster)
+
 	go func() {
 		timer := time.NewTicker(1 * time.Second)
 		for {
@@ -114,12 +120,12 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
 
-	if len(value) > shard.maxSize {
+	if len(value) > shard.size {
 		shard.mux.Unlock()
-		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.maxSize/1024/1024)
+		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.size/1024/1024)
 	}
 
-	if shard.currentSize+len(value) >= shard.maxSize {
+	if shard.currentSize+len(value) >= shard.size {
 		shard.mux.Unlock()
 
 		if shard.policy != nil {
@@ -155,6 +161,8 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	if cluster.updater != nil {
 		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 	}
+
+	go BackupCache(cluster)
 
 	return nil
 }
@@ -235,7 +243,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 	if cluster == nil {
 		cacheCluster := New(*args)
 		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
-		logutil.Info("Cache enabled")
+		logutil.Notice("Cache enabled")
 		cluster = cacheCluster
 		return nil
 	}
@@ -298,7 +306,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 			if shard.currentSize/mbBytes > args.ShardSize {
 				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.ShardSize, shard.currentSize/mbBytes)
 			}
-			newCluster.shards[i].maxSize = args.ShardSize * mbBytes
+			newCluster.shards[i].size = args.ShardSize * mbBytes
 		}
 	}
 

@@ -12,8 +12,8 @@ import (
 
 //Shard ...
 type Shard struct {
-	hashmap     map[uint64]shardItem
-	items       map[int][]byte
+	Hashmap     map[uint64]shardItem
+	Items       map[int][]byte
 	tail        int
 	mux         sync.RWMutex
 	size        int
@@ -22,16 +22,16 @@ type Shard struct {
 }
 
 type shardItem struct {
-	index  int
-	length int
-	ttl    int64
+	Index  int
+	Length int
+	TTL    int64
 }
 
 //CreateShard ...
 func CreateShard(size int, cacheAlgorithm string) *Shard {
 	s := &Shard{
-		hashmap:     make(map[uint64]shardItem),
-		items:       make(map[int][]byte),
+		Hashmap:     make(map[uint64]shardItem),
+		Items:       make(map[int][]byte),
 		tail:        0,
 		size:        size,
 		currentSize: 0,
@@ -49,7 +49,7 @@ func (s *Shard) set(hashedKey uint64, value []byte, TTL string) {
 	index := s.push(value)
 	duration := getDuration(TTL)
 	ttl := time.Now().Add(duration).Unix()
-	s.hashmap[hashedKey] = shardItem{index: index, length: len(value), ttl: ttl}
+	s.Hashmap[hashedKey] = shardItem{Index: index, Length: len(value), TTL: ttl}
 
 	if s.policy != nil {
 		s.policy.push(index, hashedKey, TTL)
@@ -65,7 +65,7 @@ func (s *Shard) push(value []byte) int {
 }
 
 func (s *Shard) save(value []byte, valueSize int, index int) {
-	s.items[index] = value
+	s.Items[index] = value
 
 	s.tail++
 	s.currentSize += valueSize
@@ -73,19 +73,19 @@ func (s *Shard) save(value []byte, valueSize int, index int) {
 
 func (s *Shard) get(hashedKey uint64) ([]byte, error) {
 	s.mux.RLock()
-	item, ok := s.hashmap[hashedKey]
+	item, ok := s.Hashmap[hashedKey]
 	if !ok {
 		s.mux.RUnlock()
 		return nil, errors.New("key not found")
 	}
-	value := s.items[item.index]
+	value := s.Items[item.Index]
 	s.mux.RUnlock()
 	return value, nil
 }
 
 func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
-	delete(s.hashmap, keyIndex)
-	delete(s.items, itemIndex)
+	delete(s.Hashmap, keyIndex)
+	delete(s.Items, itemIndex)
 
 	if s.policy != nil {
 		s.policy.mux.Lock()
@@ -99,9 +99,9 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 func (s *Shard) update(timestamp int64, updater *Updater) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	if len(s.hashmap) > 0 {
-		for keyIndex, item := range s.hashmap {
-			ttl := item.ttl
+	if len(s.Hashmap) > 0 {
+		for keyIndex, item := range s.Hashmap {
+			ttl := item.TTL
 
 			if s.policy != nil {
 				if s.policy.TimeBased() {
@@ -111,7 +111,7 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 
 			if timestamp > ttl {
 				//delete stale version in any case
-				s.delete(keyIndex, item.index, item.length)
+				s.delete(keyIndex, item.Index, item.Length)
 
 				if updater != nil {
 					urlString, err := updater.keyStorage.GetInitialKey(keyIndex)
@@ -136,7 +136,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 		return err
 	}
 
-	s.delete(keyIndex, itemIndex, s.hashmap[keyIndex].length)
+	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
 	if s.size-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
@@ -154,7 +154,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 	}
 	s.mux.Lock()
 
-	s.delete(keyIndex, itemIndex, s.hashmap[keyIndex].length)
+	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
 	if s.size-s.currentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
