@@ -25,7 +25,7 @@ const Metrics = () => {
       spec({ attr: {class: "chart-inline-block"} })
 
       MinorChart($RPM, "RPM", "chartRPM", initChart)
-      MinorChart($RSS, "MEMORY", "chartRSS", initChart)
+      MinorChart($RSS, "MEMORY", "chartRSS", initChart, 'MB')
       MinorChart(0, "ERRORS", "chartERR", initChart)
     })
 
