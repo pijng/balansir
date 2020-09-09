@@ -41,7 +41,7 @@ func (f fnv64a) Sum(key string) uint64 {
 //CacheCluster ...
 type CacheCluster struct {
 	encoder          *gob.Encoder
-	backup           *os.File
+	snapshotFile     *os.File
 	shards           []*Shard
 	Hash             fnv64a
 	ShardsAmount     int
@@ -90,17 +90,10 @@ func New(args CacheClusterArgs) *CacheCluster {
 		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
 	}
 
+	//Restore cache in a separate goroutine to exclude hang up on booting.
 	go RestoreCache(cluster)
 
-	go func() {
-		timer := time.NewTicker(1 * time.Second)
-		for {
-			select {
-			case <-timer.C:
-				cluster.invalidate(time.Now().Unix())
-			}
-		}
-	}()
+	go cluster.runInvalidation()
 
 	return cluster
 }
@@ -162,8 +155,6 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 	}
 
-	go BackupCache(cluster)
-
 	return nil
 }
 
@@ -199,6 +190,16 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 func (cluster *CacheCluster) invalidate(timestamp int64) {
 	for _, shard := range cluster.shards {
 		shard.update(timestamp, cluster.updater)
+	}
+}
+
+func (cluster *CacheCluster) runInvalidation() {
+	timer := time.NewTicker(1 * time.Second)
+	for {
+		select {
+		case <-timer.C:
+			cluster.invalidate(time.Now().Unix())
+		}
 	}
 }
 

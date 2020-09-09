@@ -10,60 +10,60 @@ import (
 )
 
 const (
-	cachePath = ".cache.gob"
+	snapshotPath = ".snapshot.gob"
 )
 
-//Backup ...
-type Backup struct {
+//Snapshot ...
+type Snapshot struct {
 	Shards    []*Shard
 	KsHashMap map[uint64]string
 }
 
-//BackupCache ...
-func BackupCache(cluster *CacheCluster) {
-	cluster.backup.Seek(0, io.SeekStart)
-	cluster.backup.Truncate(0)
+//TakeCacheSnapshot ...
+func TakeCacheSnapshot(cluster *CacheCluster) {
+	cluster.snapshotFile.Seek(0, io.SeekStart)
+	cluster.snapshotFile.Truncate(0)
 
-	backup := &Backup{
+	snapshot := &Snapshot{
 		Shards: cluster.shards,
 	}
 
 	if cluster.backgroundUpdate {
-		backup.KsHashMap = cluster.updater.keyStorage.hashmap
+		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
 	}
 
-	err := cluster.encoder.Encode(&backup)
+	err := cluster.encoder.Encode(&snapshot)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
 	}
 }
 
-//GetBackup ...
-func GetBackup() (Backup, *gob.Encoder, *os.File, error) {
-	bf, err := os.OpenFile(cachePath, os.O_CREATE|os.O_RDWR, 0660)
+//GetSnapshot ...
+func GetSnapshot() (Snapshot, *gob.Encoder, *os.File, error) {
+	bf, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
-		return Backup{}, nil, nil, fmt.Errorf("failed to create/open cache backup file: %v", err)
+		return Snapshot{}, nil, nil, fmt.Errorf("failed to create/open cache snapshot file: %v", err)
 	}
 
 	encoder := gob.NewEncoder(bf)
 	decoder := gob.NewDecoder(bf)
 
-	backup := Backup{}
-	err = decoder.Decode(&backup)
+	snapshot := Snapshot{}
+	err = decoder.Decode(&snapshot)
 
-	return backup, encoder, bf, nil
+	return snapshot, encoder, bf, nil
 }
 
 //RestoreCache ...
 func RestoreCache(cluster *CacheCluster) {
-	backup, encoder, file, err := GetBackup()
+	snapshot, encoder, file, err := GetSnapshot()
 	if err != nil {
 		logutil.Warning(err)
 		return
 	}
 
 	cluster.encoder = encoder
-	cluster.backup = file
+	cluster.snapshotFile = file
 
 	stats, err := file.Stat()
 	if err != nil {
@@ -74,39 +74,39 @@ func RestoreCache(cluster *CacheCluster) {
 		return
 	}
 
-	logutil.Info("Restoring cache backup...")
+	logutil.Info("Processing cache backup...")
 
-	errs := RestoreShards(cluster, backup, cluster.shards)
+	errs := RestoreShards(cluster, snapshot, cluster.shards)
 	if errs != nil {
-		logutil.Warning("Encountered the following errors while processing cache restore")
+		logutil.Warning("Encountered the following errors while processing cache backup")
 		for i := 0; i < len(errs); i++ {
 			logutil.Warning(fmt.Sprintf("\t %v", errs[i]))
 		}
 		return
 	}
 
-	logutil.Notice("Cache backup restored")
+	logutil.Notice("Cache backup succeeded")
 }
 
 //RestoreShards ...
-func RestoreShards(cluster *CacheCluster, backup Backup, shards []*Shard) []error {
+func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []error {
 	var errs []error
 
-	for _, backupShard := range backup.Shards {
-		for key, item := range backupShard.Hashmap {
+	for _, snapshotShard := range snapshot.Shards {
+		for key, item := range snapshotShard.Hashmap {
 			shard := cluster.getShard(key)
-			value := backupShard.Items[item.Index]
+			value := snapshotShard.Items[item.Index]
 
 			err := RestoreShard(key, item, value, shard)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			shard.Tail = backupShard.Tail
-			shard.CurrentSize = backupShard.CurrentSize
+			shard.Tail = snapshotShard.Tail
+			shard.CurrentSize = snapshotShard.CurrentSize
 
 			if cluster.backgroundUpdate {
-				cluster.updater.keyStorage.hashmap[key] = backup.KsHashMap[key]
+				cluster.updater.keyStorage.hashmap[key] = snapshot.KsHashMap[key]
 			}
 		}
 	}
