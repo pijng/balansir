@@ -102,8 +102,8 @@ func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []
 				errs = append(errs, err)
 				continue
 			}
-			shard.Tail = snapshotShard.Tail
-			shard.CurrentSize = snapshotShard.CurrentSize
+			shard.Tail++
+			shard.CurrentSize += item.Length
 
 			if cluster.backgroundUpdate {
 				cluster.updater.keyStorage.hashmap[key] = snapshot.KsHashMap[key]
