@@ -42,6 +42,7 @@ func (f fnv64a) Sum(key string) uint64 {
 type CacheCluster struct {
 	encoder          *gob.Encoder
 	snapshotFile     *os.File
+	backupManager    *BackupManager
 	shards           []*Shard
 	Hash             fnv64a
 	ShardsAmount     int
@@ -73,6 +74,7 @@ var cluster *CacheCluster
 //New ...
 func New(args CacheClusterArgs) *CacheCluster {
 	cluster = &CacheCluster{
+		backupManager:  &BackupManager{},
 		shards:         make([]*Shard, args.ShardsAmount),
 		ShardsAmount:   args.ShardsAmount,
 		ShardSize:      args.ShardSize,
@@ -94,6 +96,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 	go RestoreCache(cluster)
 
 	go cluster.runInvalidation()
+	go cluster.backupManager.PersistCache()
 
 	return cluster
 }
@@ -121,7 +124,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	if shard.CurrentSize+len(value) >= shard.size {
 		shard.mux.Unlock()
 
-		if shard.policy != nil {
+		if shard.Policy != nil {
 			if err := shard.evict(len(value)); err != nil {
 				return err
 			}
@@ -131,6 +134,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 			}
 
+			cluster.backupManager.Hit()
 			return nil
 		}
 
@@ -143,6 +147,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 			}
 
+			cluster.backupManager.Hit()
 			return nil
 		}
 
@@ -155,6 +160,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 	}
 
+	cluster.backupManager.Hit()
 	return nil
 }
 
@@ -175,8 +181,8 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 	}
 	if err == nil {
 		atomic.AddInt64(&cluster.Hits, 1)
-		if shard.policy != nil {
-			shard.policy.updateMetaValue(hashedKey)
+		if shard.Policy != nil {
+			shard.Policy.updateMetaValue(hashedKey)
 		}
 	}
 	if err != nil {
@@ -250,6 +256,9 @@ func RedefineCache(args *CacheClusterArgs) error {
 	}
 
 	newCluster := &CacheCluster{
+		encoder:          cluster.encoder,
+		snapshotFile:     cluster.snapshotFile,
+		backupManager:    cluster.backupManager,
 		Hits:             cluster.Hits,
 		Misses:           cluster.Misses,
 		exceedFallback:   args.ExceedFallback,

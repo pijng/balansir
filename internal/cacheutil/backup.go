@@ -7,11 +7,20 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync/atomic"
+	"time"
 )
 
 const (
-	snapshotPath = ".snapshot.gob"
+	snapshotPath        = ".snapshot.gob"
+	actionsThreshold1m  = 100
+	actionsThreshold15m = 1
 )
+
+//BackupManager ...
+type BackupManager struct {
+	ActionsCount int64
+}
 
 //Snapshot ...
 type Snapshot struct {
@@ -19,8 +28,48 @@ type Snapshot struct {
 	KsHashMap map[uint64]string
 }
 
+//PersistCache ...
+func (bm *BackupManager) PersistCache() {
+	ticker1m := time.NewTicker(1 * time.Minute)
+	ticker5m := time.NewTicker(5 * time.Minute)
+	ticker15m := time.NewTicker(15 * time.Minute)
+
+	for {
+		select {
+		case <-ticker1m.C:
+			actions := atomic.LoadInt64(&bm.ActionsCount)
+			if actions >= actionsThreshold1m {
+				fmt.Println("Persisting for 1 minute")
+				TakeCacheSnapshot()
+			}
+			atomic.StoreInt64(&bm.ActionsCount, 0)
+		case <-ticker5m.C:
+			actions := atomic.LoadInt64(&bm.ActionsCount)
+			if actions > 1 && actions <= actionsThreshold1m {
+				fmt.Println("Persisting for 5 minute")
+				TakeCacheSnapshot()
+			}
+			atomic.StoreInt64(&bm.ActionsCount, 0)
+		case <-ticker15m.C:
+			actions := atomic.LoadInt64(&bm.ActionsCount)
+			if actions <= 1 {
+				fmt.Println("Persisting for 15 minute")
+				TakeCacheSnapshot()
+			}
+			atomic.StoreInt64(&bm.ActionsCount, 0)
+		}
+	}
+}
+
+//Hit ...
+func (bm *BackupManager) Hit() {
+	atomic.AddInt64(&bm.ActionsCount, 1)
+}
+
 //TakeCacheSnapshot ...
-func TakeCacheSnapshot(cluster *CacheCluster) {
+func TakeCacheSnapshot() {
+	cluster := GetCluster()
+
 	cluster.snapshotFile.Seek(0, io.SeekStart)
 	cluster.snapshotFile.Truncate(0)
 
@@ -95,15 +144,12 @@ func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []
 	for _, snapshotShard := range snapshot.Shards {
 		for key, item := range snapshotShard.Hashmap {
 			shard := cluster.getShard(key)
-			value := snapshotShard.Items[item.Index]
 
-			err := RestoreShard(key, item, value, shard)
+			err := RestoreShard(key, item, shard, snapshotShard)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			shard.Tail++
-			shard.CurrentSize += item.Length
 
 			if cluster.backgroundUpdate {
 				cluster.updater.keyStorage.hashmap[key] = snapshot.KsHashMap[key]
@@ -115,7 +161,7 @@ func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []
 }
 
 //RestoreShard ...
-func RestoreShard(key uint64, item shardItem, value []byte, shard *Shard) error {
+func RestoreShard(key uint64, item shardItem, shard *Shard, snapshotShard *Shard) error {
 	if item.Length >= shard.size {
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(item.Length)/1024/1024), shard.size/1024/1024)
 	}
@@ -123,8 +169,17 @@ func RestoreShard(key uint64, item shardItem, value []byte, shard *Shard) error 
 		return errors.New("potential exceeding of shard max capacity")
 	}
 
+	value := snapshotShard.Items[item.Index]
+
 	shard.Hashmap[key] = item
 	shard.Items[item.Index] = value
+	shard.CurrentSize += item.Length
+	shard.Tail = snapshotShard.Tail
+
+	if shard.Policy != nil && snapshotShard.Policy != nil {
+		shard.Policy.policyType = snapshotShard.Policy.policyType
+		shard.Policy.hashMap[key] = snapshotShard.Policy.hashMap[key]
+	}
 
 	return nil
 }

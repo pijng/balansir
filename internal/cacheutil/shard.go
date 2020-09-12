@@ -18,7 +18,7 @@ type Shard struct {
 	mux         sync.RWMutex
 	size        int
 	CurrentSize int
-	policy      *Meta
+	Policy      *Meta
 }
 
 type shardItem struct {
@@ -38,7 +38,7 @@ func CreateShard(size int, cacheAlgorithm string) *Shard {
 	}
 
 	if cacheAlgorithm != "" {
-		s.policy = NewMeta(cacheAlgorithm)
+		s.Policy = NewMeta(cacheAlgorithm)
 	}
 
 	return s
@@ -51,8 +51,8 @@ func (s *Shard) set(hashedKey uint64, value []byte, TTL string) {
 	ttl := time.Now().Add(duration).Unix()
 	s.Hashmap[hashedKey] = shardItem{Index: index, Length: len(value), TTL: ttl}
 
-	if s.policy != nil {
-		s.policy.push(index, hashedKey, TTL)
+	if s.Policy != nil {
+		s.Policy.push(index, hashedKey, TTL)
 	}
 	s.mux.Unlock()
 }
@@ -87,10 +87,10 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 	delete(s.Hashmap, keyIndex)
 	delete(s.Items, itemIndex)
 
-	if s.policy != nil {
-		s.policy.mux.Lock()
-		delete(s.policy.hashMap, keyIndex)
-		s.policy.mux.Unlock()
+	if s.Policy != nil {
+		s.Policy.mux.Lock()
+		delete(s.Policy.hashMap, keyIndex)
+		s.Policy.mux.Unlock()
 	}
 
 	s.CurrentSize -= valueSize
@@ -103,15 +103,18 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 		for keyIndex, item := range s.Hashmap {
 			ttl := item.TTL
 
-			if s.policy != nil {
-				if s.policy.TimeBased() {
-					ttl = s.policy.hashMap[keyIndex].value
+			if s.Policy != nil {
+				if s.Policy.TimeBased() {
+					ttl = s.Policy.hashMap[keyIndex].value
 				}
 			}
 
 			if timestamp > ttl {
 				//delete stale version in any case
 				s.delete(keyIndex, item.Index, item.Length)
+
+				cluster := GetCluster()
+				cluster.backupManager.Hit()
 
 				if updater != nil {
 					urlString, err := updater.keyStorage.GetInitialKey(keyIndex)
@@ -131,7 +134,7 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 }
 
 func (s *Shard) retryEvict(pendingValueSize int) error {
-	itemIndex, keyIndex, err := s.policy.evict()
+	itemIndex, keyIndex, err := s.Policy.evict()
 	if err != nil {
 		return err
 	}
@@ -148,7 +151,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 }
 
 func (s *Shard) evict(pendingValueSize int) error {
-	itemIndex, keyIndex, err := s.policy.evict()
+	itemIndex, keyIndex, err := s.Policy.evict()
 	if err != nil {
 		return err
 	}
