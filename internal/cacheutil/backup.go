@@ -39,21 +39,18 @@ func (bm *BackupManager) PersistCache() {
 		case <-ticker1m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions >= actionsThreshold1m {
-				fmt.Println("Persisting for 1 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker5m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions > 1 && actions <= actionsThreshold1m {
-				fmt.Println("Persisting for 5 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker15m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions <= 1 {
-				fmt.Println("Persisting for 15 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
