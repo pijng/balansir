@@ -39,18 +39,21 @@ func (bm *BackupManager) PersistCache() {
 		case <-ticker1m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions >= actionsThreshold1m {
+				fmt.Println("backup in 1 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker5m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions > 1 && actions <= actionsThreshold1m {
+				fmt.Println("backup in 5 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker15m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions <= 1 {
+				fmt.Println("backup in 15 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
@@ -174,8 +177,8 @@ func RestoreShard(key uint64, item shardItem, shard *Shard, snapshotShard *Shard
 	shard.Tail = snapshotShard.Tail
 
 	if shard.Policy != nil && snapshotShard.Policy != nil {
-		shard.Policy.policyType = snapshotShard.Policy.policyType
-		shard.Policy.hashMap[key] = snapshotShard.Policy.hashMap[key]
+		shard.Policy.PolicyType = snapshotShard.Policy.PolicyType
+		shard.Policy.HashMap[key] = snapshotShard.Policy.HashMap[key]
 	}
 
 	return nil

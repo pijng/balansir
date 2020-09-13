@@ -89,7 +89,7 @@ func (s *Shard) delete(keyIndex uint64, itemIndex int, valueSize int) {
 
 	if s.Policy != nil {
 		s.Policy.mux.Lock()
-		delete(s.Policy.hashMap, keyIndex)
+		delete(s.Policy.HashMap, keyIndex)
 		s.Policy.mux.Unlock()
 	}
 
@@ -105,7 +105,7 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 
 			if s.Policy != nil {
 				if s.Policy.TimeBased() {
-					ttl = s.Policy.hashMap[keyIndex].value
+					ttl = s.Policy.HashMap[keyIndex].Value
 				}
 			}
 

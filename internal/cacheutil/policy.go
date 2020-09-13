@@ -21,46 +21,46 @@ const (
 
 //Meta ...
 type Meta struct {
-	hashMap    map[uint64]HashValue
-	policyType string
+	HashMap    map[uint64]HashValue
+	PolicyType string
 	mux        sync.RWMutex
 }
 
 //HashValue ...
 type HashValue struct {
-	value     int64
-	itemIndex int
-	keyIndex  uint64
-	ttl       string
+	Value     int64
+	ItemIndex int
+	KeyIndex  uint64
+	TTL       string
 }
 
 //NewMeta ...
 func NewMeta(policyType string) *Meta {
 	return &Meta{
-		hashMap:    make(map[uint64]HashValue),
-		policyType: policyType,
+		HashMap:    make(map[uint64]HashValue),
+		PolicyType: policyType,
 	}
 }
 
 func (meta *Meta) getEvictionItem() (int, uint64) {
-	values := make([]HashValue, 0, len(meta.hashMap))
-	for _, v := range meta.hashMap {
-		values = append(values, HashValue{value: v.value, itemIndex: v.itemIndex, keyIndex: v.keyIndex, ttl: v.ttl})
+	values := make([]HashValue, 0, len(meta.HashMap))
+	for _, v := range meta.HashMap {
+		values = append(values, HashValue{Value: v.Value, ItemIndex: v.ItemIndex, KeyIndex: v.KeyIndex, TTL: v.TTL})
 	}
 
-	switch meta.policyType {
+	switch meta.PolicyType {
 	case _MRU, _MFU:
 		sort.SliceStable(values, func(i, j int) bool {
-			return values[i].value > values[j].value
+			return values[i].Value > values[j].Value
 		})
 	case _LRU, _LFU:
 		sort.SliceStable(values, func(i, j int) bool {
-			return values[i].value < values[j].value
+			return values[i].Value < values[j].Value
 		})
 	case _FiFo:
 	}
 
-	return values[0].itemIndex, values[0].keyIndex
+	return values[0].ItemIndex, values[0].KeyIndex
 }
 
 func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
@@ -69,7 +69,7 @@ func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
 
 	var value int64
 
-	switch meta.policyType {
+	switch meta.PolicyType {
 	case _MRU, _LRU:
 		duration := getDuration(TTL)
 		value = time.Now().Add(duration).Unix()
@@ -79,33 +79,33 @@ func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
 		value = 0
 	}
 
-	meta.hashMap[keyIndex] = HashValue{value: value, itemIndex: itemIndex, keyIndex: keyIndex, ttl: TTL}
+	meta.HashMap[keyIndex] = HashValue{Value: value, ItemIndex: itemIndex, KeyIndex: keyIndex, TTL: TTL}
 }
 
 func (meta *Meta) updateMetaValue(keyIndex uint64) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
 
-	metaHash := meta.hashMap[keyIndex]
+	metaHash := meta.HashMap[keyIndex]
 
-	switch meta.policyType {
+	switch meta.PolicyType {
 	case _LFU, _MFU:
-		metaHash.value++
+		metaHash.Value++
 	case _LRU, _MRU:
-		duration := getDuration(metaHash.ttl)
-		metaHash.value = time.Now().Add(duration).Unix()
+		duration := getDuration(metaHash.TTL)
+		metaHash.Value = time.Now().Add(duration).Unix()
 	}
 
-	meta.hashMap[keyIndex] = metaHash
+	meta.HashMap[keyIndex] = metaHash
 }
 
 func (meta *Meta) evict() (int, uint64, error) {
 	meta.mux.Lock()
 	defer meta.mux.Unlock()
-	if len(meta.hashMap) > 0 {
+	if len(meta.HashMap) > 0 {
 
 		itemIndex, keyIndex := meta.getEvictionItem()
-		delete(meta.hashMap, keyIndex)
+		delete(meta.HashMap, keyIndex)
 
 		return itemIndex, keyIndex, nil
 	}
@@ -114,7 +114,7 @@ func (meta *Meta) evict() (int, uint64, error) {
 
 //TimeBased ...
 func (meta *Meta) TimeBased() bool {
-	if meta.policyType == _LRU || meta.policyType == _MRU {
+	if meta.PolicyType == _LRU || meta.PolicyType == _MRU {
 		return true
 	}
 	return false
