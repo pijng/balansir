@@ -39,21 +39,18 @@ func (bm *BackupManager) PersistCache() {
 		case <-ticker1m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions >= actionsThreshold1m {
-				fmt.Println("backup in 1 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker5m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions > 1 && actions <= actionsThreshold1m {
-				fmt.Println("backup in 5 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker15m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
 			if actions <= 1 {
-				fmt.Println("backup in 15 minute")
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
@@ -161,7 +158,7 @@ func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []
 }
 
 //RestoreShard ...
-func RestoreShard(key uint64, item shardItem, shard *Shard, snapshotShard *Shard) error {
+func RestoreShard(hashedKey uint64, item shardItem, shard *Shard, snapshotShard *Shard) error {
 	if item.Length >= shard.size {
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(item.Length)/1024/1024), shard.size/1024/1024)
 	}
@@ -170,15 +167,12 @@ func RestoreShard(key uint64, item shardItem, shard *Shard, snapshotShard *Shard
 	}
 
 	value := snapshotShard.Items[item.Index]
-
-	shard.Hashmap[key] = item
-	shard.Items[item.Index] = value
-	shard.CurrentSize += item.Length
-	shard.Tail = snapshotShard.Tail
+	index := shard.push(value)
+	shard.Hashmap[hashedKey] = shardItem{Index: index, Length: len(value), TTL: item.TTL}
 
 	if shard.Policy != nil && snapshotShard.Policy != nil {
-		shard.Policy.PolicyType = snapshotShard.Policy.PolicyType
-		shard.Policy.HashMap[key] = snapshotShard.Policy.HashMap[key]
+		TTL := snapshotShard.Policy.HashMap[hashedKey].TTL
+		shard.Policy.push(index, hashedKey, TTL)
 	}
 
 	return nil
