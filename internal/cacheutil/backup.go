@@ -74,7 +74,7 @@ func TakeCacheSnapshot() {
 		Shards: cluster.shards,
 	}
 
-	if cluster.backgroundUpdate {
+	if cluster.backgroundUpdate && cluster.updater != nil {
 		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
 	}
 
@@ -149,7 +149,7 @@ func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []
 			}
 
 			if cluster.backgroundUpdate {
-				cluster.updater.keyStorage.hashmap[key] = snapshot.KsHashMap[key]
+				cluster.updater.keyStorage.SetHashedKey(snapshot.KsHashMap[key], key)
 			}
 		}
 	}
