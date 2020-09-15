@@ -30,6 +30,10 @@ const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearc
         }
       })
 
+      h('div', {
+        attr: {id: "anchor"}
+      })
+
     })
 
   })

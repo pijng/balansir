@@ -701,6 +701,15 @@ body {
   -ms-overflow-style: none;  /* Internet Explorer 10+ */
 }
 
+.logs-block .logs-table * {
+  overflow-anchor: none;
+}
+
+.logs-block #anchor {
+  overflow-anchor: auto;
+  height: 1px;
+}
+
 .logs-block .logs-table::-webkit-scrollbar {
   width: 0;
   height: 0;
