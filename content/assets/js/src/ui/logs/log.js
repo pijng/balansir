@@ -9,7 +9,12 @@ const TAG_COLORS = {
   "FATAL":   "#bf5af2ff"
 }
 
-const Log = ($timestamp, $tag, $text, scrollID, isRendered, $tags, $searchInput) => {
+const DATEFORMAT_OPTIONS = {
+  hour: 'numeric', minute: 'numeric', second: 'numeric',
+  year: 'numeric', month: 'numeric', day: 'numeric',
+}
+
+const Log = ($timestamp, $tag, $text, locale, scrollID, isRendered, $tags, $searchInput) => {
   h('div', () => {
     spec({
       attr: {class: "log"},
@@ -22,7 +27,7 @@ const Log = ($timestamp, $tag, $text, scrollID, isRendered, $tags, $searchInput)
 
     h('div', {
       attr: {class: "column timestamp"},
-      text: $timestamp.map(t => new Date(t).toLocaleString())
+      text: $timestamp.map(t => new Intl.DateTimeFormat(locale, DATEFORMAT_OPTIONS).format(new Date(t)))
     })
     h('div', {
       attr: {class: "column tag"},
