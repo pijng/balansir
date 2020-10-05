@@ -44,13 +44,13 @@ func (bm *BackupManager) PersistCache() {
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker5m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
-			if actions > 1 && actions <= actionsThreshold1m {
+			if actions > actionsThreshold15m && actions <= actionsThreshold1m {
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
 		case <-ticker15m.C:
 			actions := atomic.LoadInt64(&bm.ActionsCount)
-			if actions <= 1 {
+			if actions <= actionsThreshold15m {
 				TakeCacheSnapshot()
 			}
 			atomic.StoreInt64(&bm.ActionsCount, 0)
@@ -67,8 +67,8 @@ func (bm *BackupManager) Hit() {
 func TakeCacheSnapshot() {
 	cluster := GetCluster()
 
-	cluster.snapshotFile.Seek(0, io.SeekStart)
 	cluster.snapshotFile.Truncate(0)
+	cluster.snapshotFile.Seek(0, io.SeekStart)
 
 	snapshot := &Snapshot{
 		Shards: cluster.shards,
