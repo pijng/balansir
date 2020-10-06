@@ -16,7 +16,7 @@ func WithGzip(r *http.Response) io.ReadCloser {
 	b, _ := ioutil.ReadAll(r.Body)
 
 	var gzBuf bytes.Buffer
-	gz := gzip.NewWriter(&gzBuf)
+	gz, _ := gzip.NewWriterLevel(&gzBuf, gzip.BestCompression)
 	if _, err := gz.Write(b); err != nil {
 		logutil.Error(fmt.Sprintf("Error writing to gzip: %v", err))
 	}
@@ -31,7 +31,7 @@ func WithGzip(r *http.Response) io.ReadCloser {
 	return ioutil.NopCloser(&gzBuf)
 }
 
-var gzipTypes = []string{"text/text", "text/html", "text/plain", "text/xml", "text/css", "application/x-javascript", "application/javascript"}
+var gzipTypes = []string{"text/text", "text/html", "text/plain", "text/xml", "text/css", "text/javascript", "application/javascript", "application/json", "application/x-javascript", "application/xml", "application/xml+rss", "application/xhtml+xml", "application/x-font-ttf", "application/x-font-opentype", "application/vnd.ms-fontobject", "image/svg+xml", "image/x-icon", "application/rss+xml", "application/atom_xml"}
 
 //Allow ...
 func Allow(contentType string) bool {
