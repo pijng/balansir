@@ -202,10 +202,8 @@ func (cluster *CacheCluster) invalidate(timestamp int64) {
 func (cluster *CacheCluster) runInvalidation() {
 	timer := time.NewTicker(1 * time.Second)
 	for {
-		select {
-		case <-timer.C:
-			cluster.invalidate(time.Now().Unix())
-		}
+		<-timer.C
+		cluster.invalidate(time.Now().Unix())
 	}
 }
 
@@ -361,11 +359,9 @@ func TryServeFromCache(w http.ResponseWriter, r *http.Request) error {
 			cache.Queue.Set(hashedKey)
 			go func() {
 				for {
-					select {
-					case <-time.After(time.Duration(configuration.WriteTimeout) * time.Second):
-						cache.Queue.Release(hashedKey)
-						return
-					}
+					<-time.After(time.Duration(configuration.WriteTimeout) * time.Second)
+					cache.Queue.Release(hashedKey)
+					return
 				}
 			}()
 		} else {

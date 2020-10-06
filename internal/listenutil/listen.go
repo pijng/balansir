@@ -75,7 +75,7 @@ func ServeTLSWithAutocert() {
 		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
 		Handler:      balanceutil.NewServeMux(),
 		TLSConfig:    TLSConfig,
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}
@@ -114,7 +114,7 @@ func ServeTLSWithSelfSignedCerts() {
 		Addr:         ":" + strconv.Itoa(configuration.TLSPort),
 		Handler:      balanceutil.NewServeMux(),
 		TLSConfig:    tlsConfig(),
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		ReadTimeout:  time.Duration(configuration.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(configuration.WriteTimeout) * time.Second,
 	}

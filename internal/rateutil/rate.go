@@ -28,10 +28,8 @@ func GetRateCounter() *Rate {
 	go func() {
 		timer := time.NewTicker(1 * time.Second)
 		for {
-			select {
-			case <-timer.C:
-				rate.swapMap()
-			}
+			<-timer.C
+			rate.swapMap()
 		}
 	}()
 

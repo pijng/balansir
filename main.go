@@ -26,23 +26,22 @@ func serversCheck() {
 	pool := poolutil.GetPool()
 	timer := time.NewTicker(time.Duration(configuration.Delay) * time.Second)
 	for {
-		select {
-		case <-timer.C:
-			pool.Guard.Wait()
-			inActive := 0
-			for _, server := range pool.ServerList {
-				active := server.CheckAlive(&configuration.Timeout)
-				if !active {
-					inActive++
-				}
+		<-timer.C
+
+		pool.Guard.Wait()
+		inActive := 0
+		for _, server := range pool.ServerList {
+			active := server.CheckAlive(&configuration.Timeout)
+			if !active {
+				inActive++
 			}
-			if inActive == len(pool.ServerList) {
-				logutil.Error("All servers are down!")
-			}
-			configuration.Mux.Lock()
-			timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
-			configuration.Mux.Unlock()
 		}
+		if inActive == len(pool.ServerList) {
+			logutil.Error("All servers are down!")
+		}
+		configuration.Mux.Lock()
+		timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
+		configuration.Mux.Unlock()
 	}
 }
 
@@ -121,7 +120,7 @@ func configWatch() {
 			if errs != nil {
 				logutil.Error("Configuration errors:")
 				for i := 0; i < len(errs); i++ {
-					logutil.Error(fmt.Sprintf("\t %v", errs[i]))
+					logutil.Error(errs[i])
 				}
 				continue
 			}
@@ -145,7 +144,7 @@ func main() {
 	if errs := fillConfiguration(file); errs != nil {
 		logutil.Fatal("Configuration errors:")
 		for i := 0; i < len(errs); i++ {
-			logutil.Fatal(fmt.Sprintf("\t %v", errs[i]))
+			logutil.Fatal(errs[i])
 			if len(errs)-1 == i {
 				logutil.Fatal("Balansir stopped!")
 				os.Exit(1)

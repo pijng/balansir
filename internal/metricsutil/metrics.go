@@ -87,7 +87,10 @@ func CollectedLogs(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write(bytes)
+	_, err := w.Write(bytes)
+	if err != nil {
+		logutil.Warning(fmt.Errorf("Error writing collected logs to dashboard: %v", err))
+	}
 }
 
 var metrics *objects
@@ -105,10 +108,8 @@ func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*server
 	go func() {
 		timer := time.NewTicker(1 * time.Second)
 		for {
-			select {
-			case <-timer.C:
-				logutil.Stats(getBalansirStats())
-			}
+			<-timer.C
+			logutil.Stats(getBalansirStats())
 		}
 	}()
 }

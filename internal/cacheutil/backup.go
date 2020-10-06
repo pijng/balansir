@@ -77,8 +77,17 @@ func (bm *BackupManager) PersistCache() {
 func TakeCacheSnapshot() {
 	cluster := GetCluster()
 
-	cluster.snapshotFile.Truncate(0)
-	cluster.snapshotFile.Seek(0, io.SeekStart)
+	err := cluster.snapshotFile.Truncate(0)
+	if err != nil {
+		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
+		return
+	}
+
+	_, err = cluster.snapshotFile.Seek(0, io.SeekStart)
+	if err != nil {
+		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
+		return
+	}
 
 	snapshot := &Snapshot{
 		Shards: cluster.shards,
@@ -88,7 +97,7 @@ func TakeCacheSnapshot() {
 		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
 	}
 
-	err := cluster.encoder.Encode(&snapshot)
+	err = cluster.encoder.Encode(&snapshot)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
 	}
@@ -105,7 +114,7 @@ func GetSnapshot() (Snapshot, *gob.Encoder, *os.File, error) {
 	decoder := gob.NewDecoder(bf)
 
 	snapshot := Snapshot{}
-	err = decoder.Decode(&snapshot)
+	decoder.Decode(&snapshot) //nolint
 
 	return snapshot, encoder, bf, nil
 }
@@ -136,7 +145,7 @@ func RestoreCache(cluster *CacheCluster) {
 	if errs != nil {
 		logutil.Warning("Encountered the following errors while processing cache backup")
 		for i := 0; i < len(errs); i++ {
-			logutil.Warning(fmt.Sprintf("\t %v", errs[i]))
+			logutil.Warning(errs[i])
 		}
 		return
 	}

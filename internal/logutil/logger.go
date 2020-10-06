@@ -111,23 +111,23 @@ func (l *Logger) output(severity string, txt string) {
 
 	switch severity {
 	case tagInfo:
-		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt))
+		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt)) //nolint
 		l.jsonLogger(time.Now(), tagInfo, txt)
 
 	case tagNotice:
-		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt))
+		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt)) //nolint
 		l.jsonLogger(time.Now(), tagNotice, txt)
 
 	case tagWarning:
-		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt))
+		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt)) //nolint
 		l.jsonLogger(time.Now(), tagWarning, txt)
 
 	case tagError:
-		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt))
+		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt)) //nolint
 		l.jsonLogger(time.Now(), tagError, txt)
 
 	case tagFatal:
-		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt))
+		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt)) //nolint
 		l.jsonLogger(time.Now(), tagFatal, txt)
 	}
 }
@@ -144,7 +144,7 @@ func dateFormat(cTime time.Time) string {
 }
 
 func (l *Logger) malformedJSON(err error) {
-	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err)))
+	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
 func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
@@ -188,7 +188,6 @@ func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
 	}
 }
 
-var logs []interface{}
 var jsonLogs []byte
 var sFile *os.File
 var sErr error
@@ -212,7 +211,11 @@ func (l *Logger) stats(stats interface{}) {
 	length := info.Size()
 
 	if length == 0 {
-		sFile.WriteAt([]byte("[]"), 0)
+		_, err = sFile.WriteAt([]byte("[]"), 0)
+		if err != nil {
+			Warning(err)
+			return
+		}
 	}
 
 	jsonLogs, err = json.Marshal(stats)
@@ -225,7 +228,11 @@ func (l *Logger) stats(stats interface{}) {
 		jsonLogs = append([]byte(","), jsonLogs...)
 	}
 	jsonLogs = append(jsonLogs, []byte("]")...)
-	sFile.WriteAt(jsonLogs, length-1)
+
+	_, err = sFile.WriteAt(jsonLogs, length-1)
+	if err != nil {
+		Warning(err)
+	}
 }
 
 //Info ...
