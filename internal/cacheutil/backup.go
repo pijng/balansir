@@ -28,6 +28,21 @@ type Snapshot struct {
 	KsHashMap map[uint64]string
 }
 
+//Hit ...
+func (bm *BackupManager) Hit() {
+	atomic.AddInt64(&bm.ActionsCount, 1)
+}
+
+//Reset ...
+func (bm *BackupManager) Reset() {
+	atomic.StoreInt64(&bm.ActionsCount, 0)
+}
+
+//GetHitsCount ...
+func (bm *BackupManager) GetHitsCount() int64 {
+	return atomic.LoadInt64(&bm.ActionsCount)
+}
+
 //PersistCache ...
 func (bm *BackupManager) PersistCache() {
 	ticker1m := time.NewTicker(1 * time.Minute)
@@ -37,30 +52,25 @@ func (bm *BackupManager) PersistCache() {
 	for {
 		select {
 		case <-ticker1m.C:
-			actions := atomic.LoadInt64(&bm.ActionsCount)
+			actions := bm.GetHitsCount()
 			if actions >= actionsThreshold1m {
 				TakeCacheSnapshot()
 			}
-			atomic.StoreInt64(&bm.ActionsCount, 0)
+			bm.Reset()
 		case <-ticker5m.C:
-			actions := atomic.LoadInt64(&bm.ActionsCount)
+			actions := bm.GetHitsCount()
 			if actions > actionsThreshold15m && actions <= actionsThreshold1m {
 				TakeCacheSnapshot()
 			}
-			atomic.StoreInt64(&bm.ActionsCount, 0)
+			bm.Reset()
 		case <-ticker15m.C:
-			actions := atomic.LoadInt64(&bm.ActionsCount)
+			actions := bm.GetHitsCount()
 			if actions <= actionsThreshold15m {
 				TakeCacheSnapshot()
 			}
-			atomic.StoreInt64(&bm.ActionsCount, 0)
+			bm.Reset()
 		}
 	}
-}
-
-//Hit ...
-func (bm *BackupManager) Hit() {
-	atomic.AddInt64(&bm.ActionsCount, 1)
 }
 
 //TakeCacheSnapshot ...
