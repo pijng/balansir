@@ -107,25 +107,29 @@ func configWatch() {
 	if err != nil {
 		logutil.Error(fmt.Sprintf("Error reading configuration file: %v", err))
 	}
+
 	md := md5.Sum(file)
 	fileHash := hex.EncodeToString(md[:16])
 	var fileHashNext string
+
 	for {
 		file, _ = ioutil.ReadFile("config.yml")
 		md = md5.Sum(file)
 		fileHashNext = hex.EncodeToString(md[:16])
+
 		if fileHash != fileHashNext {
 			fileHash = fileHashNext
 			errs := fillConfiguration(file)
 			if errs != nil {
 				logutil.Error("Configuration errors:")
-				for i := 0; i < len(errs); i++ {
-					logutil.Error(errs[i])
+				for _, err := range errs {
+					logutil.Error(err)
 				}
 				continue
 			}
 			logutil.Notice("Configuration changes applied to Balansir")
 		}
+
 		time.Sleep(time.Second)
 	}
 }

@@ -144,8 +144,8 @@ func RestoreCache(cluster *CacheCluster) {
 	errs := RestoreShards(cluster, snapshot, cluster.shards)
 	if errs != nil {
 		logutil.Warning("Encountered the following errors while processing cache backup")
-		for i := 0; i < len(errs); i++ {
-			logutil.Warning(errs[i])
+		for _, err := range errs {
+			logutil.Warning(err)
 		}
 		return
 	}
