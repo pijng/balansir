@@ -20,13 +20,13 @@
   "homepage": "https://github.com/pijng/balansir#readme",
   "dependencies": {
     "chart.js": "^2.9.3",
-    "effector": "^21.2.2",
+    "effector": "^21.4.2",
     "forest": "^0.18.4"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^13.0.2",
     "@rollup/plugin-node-resolve": "^8.4.0",
-    "eslint": "^7.7.0",
-    "rollup": "^2.26.4"
+    "eslint": "^7.10.0",
+    "rollup": "^2.29.0"
   }
 }

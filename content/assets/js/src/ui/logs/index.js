@@ -4,6 +4,7 @@ import { Search } from './search';
 import { TagFilter } from './tag-filter';
 import { Bar } from './bar';
 import { getLocale } from '../../lib/locale';
+import { DATEFORMAT_OPTIONS } from '../../lib/dates';
 
 const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearchFocused, toggleTag, $tags, searchLogs, $searchInput, clearSearch) => {
 
@@ -23,12 +24,12 @@ const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearc
 
       let scrollID
       let isRendered = false
-      const locale = getLocale()
+      const intl = new Intl.DateTimeFormat(getLocale(), DATEFORMAT_OPTIONS)
       list({
         source: $logs,
         fields: ['tag', 'timestamp', 'text'],
         fn({ fields: [$tag, $timestamp, $text] }) {
-          Log($timestamp, $tag, $text, locale, scrollID, isRendered, $tags, $searchInput)
+          Log($timestamp, $tag, $text, intl, scrollID, isRendered, $tags, $searchInput)
         }
       })
 
