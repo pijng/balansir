@@ -60,5 +60,6 @@ func GetConfig() *Configuration {
 	once.Do(func() {
 		config = &Configuration{}
 	})
+
 	return config
 }

@@ -29,6 +29,7 @@ func GetLimiter() *Limiter {
 			list: make(map[string]*visitor),
 		}
 	})
+
 	return limiter
 }
 

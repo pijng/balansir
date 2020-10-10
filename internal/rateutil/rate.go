@@ -23,15 +23,15 @@ func GetRateCounter() *Rate {
 			ratemap:     make([]int64, 2),
 			responsemap: make([]int64, 2),
 		}
-	})
 
-	go func() {
-		timer := time.NewTicker(1 * time.Second)
-		for {
-			<-timer.C
-			rate.swapMap()
-		}
-	}()
+		go func() {
+			timer := time.NewTicker(1 * time.Second)
+			for {
+				<-timer.C
+				rate.swapMap()
+			}
+		}()
+	})
 
 	return rate
 }
