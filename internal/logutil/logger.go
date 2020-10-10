@@ -212,6 +212,7 @@ func (l *Logger) stats(stats interface{}) {
 
 	if length == 0 {
 		_, err = sFile.WriteAt([]byte("[]"), 0)
+		length = 2
 		if err != nil {
 			Warning(err)
 			return

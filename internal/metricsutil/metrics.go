@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -94,6 +95,7 @@ func CollectedLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 var metrics *objects
+var once sync.Once
 
 //InitMetricsMeta ...
 func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server) {
@@ -105,13 +107,15 @@ func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*server
 		cache:         cc,
 	}
 
-	go func() {
-		timer := time.NewTicker(1 * time.Second)
-		for {
-			<-timer.C
-			logutil.Stats(getBalansirStats())
-		}
-	}()
+	once.Do(func() {
+		go func() {
+			timer := time.NewTicker(1 * time.Second)
+			for {
+				<-timer.C
+				logutil.Stats(getBalansirStats())
+			}
+		}()
+	})
 }
 
 func getBalansirStats() Stats {
