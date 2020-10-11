@@ -59,7 +59,7 @@ sample({
     const unixTime = date.getTime()
 
     if (selectedSpan.from) {
-      if (spans.from.active) {
+      if (spans.from.active && unixTime === spans.from.date) {
         return {
           from: {active: false, date: null, time: ""},
           to: {...spans.to}
@@ -71,7 +71,7 @@ sample({
       }
     }
     if (selectedSpan.to) {
-      if (spans.to.active) {
+      if (spans.to.active && unixTime === spans.to.date) {
         return {
           from: {...spans.from},
           to: {active: false, date: null, time: ""}
@@ -87,9 +87,9 @@ sample({
 })
 
 sample({
-  source: [$charts, $stats, $spans],
+  source: [$charts, $stats],
   clock: $spans,
-  fn: ([charts, stats, spans]) => {
+  fn: ([charts, stats], spans) => {
     const {from, to} = spans
     const majorStats = stats.filter(a => {
       return (a.timestamp >= from.date && a.timestamp <= (to.date || stats[stats.length-1].timestamp))
