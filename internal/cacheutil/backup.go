@@ -79,13 +79,13 @@ func TakeCacheSnapshot() {
 
 	err := cluster.snapshotFile.Truncate(0)
 	if err != nil {
-		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
+		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 		return
 	}
 
 	_, err = cluster.snapshotFile.Seek(0, io.SeekStart)
 	if err != nil {
-		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
+		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 		return
 	}
 
@@ -99,7 +99,7 @@ func TakeCacheSnapshot() {
 
 	err = cluster.encoder.Encode(&snapshot)
 	if err != nil {
-		logutil.Warning(fmt.Sprintf("Error while processing cache backup: %v", err))
+		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 	}
 }
 
@@ -139,18 +139,16 @@ func RestoreCache(cluster *CacheCluster) {
 		return
 	}
 
-	logutil.Info("Processing cache backup...")
-
 	errs := RestoreShards(cluster, snapshot, cluster.shards)
 	if errs != nil {
-		logutil.Warning("Encountered the following errors while processing cache backup")
+		logutil.Warning("Encountered the following errors while loading cache from disk:")
 		for _, err := range errs {
 			logutil.Warning(err)
 		}
 		return
 	}
 
-	logutil.Notice("Cache backup succeeded")
+	logutil.Notice("Cache loaded from disk")
 }
 
 //RestoreShards ...
