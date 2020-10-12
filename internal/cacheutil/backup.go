@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"sync/atomic"
 	"time"
@@ -75,15 +74,20 @@ func (bm *BackupManager) PersistCache() {
 
 //TakeCacheSnapshot ...
 func TakeCacheSnapshot() {
-	cluster := GetCluster()
+	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
+	if err != nil {
+		logutil.Warning(fmt.Errorf("failed to create/open cache snapshot file: %v", err))
+		return
+	}
+	defer file.Close()
 
-	err := cluster.snapshotFile.Truncate(0)
+	file.Truncate(0)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 		return
 	}
 
-	_, err = cluster.snapshotFile.Seek(0, io.SeekStart)
+	_, err = file.Seek(0, 0)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 		return
@@ -97,38 +101,37 @@ func TakeCacheSnapshot() {
 		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
 	}
 
-	err = cluster.encoder.Encode(&snapshot)
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(&snapshot)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 	}
 }
 
 //GetSnapshot ...
-func GetSnapshot() (Snapshot, *gob.Encoder, *os.File, error) {
-	bf, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
+func GetSnapshot() (Snapshot, *os.File, error) {
+	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
-		return Snapshot{}, nil, nil, fmt.Errorf("failed to create/open cache snapshot file: %v", err)
+		return Snapshot{}, nil, fmt.Errorf("failed to create/open cache snapshot file: %v", err)
 	}
 
-	encoder := gob.NewEncoder(bf)
-	decoder := gob.NewDecoder(bf)
+	decoder := gob.NewDecoder(file)
 
 	snapshot := Snapshot{}
 	decoder.Decode(&snapshot) //nolint
 
-	return snapshot, encoder, bf, nil
+	return snapshot, file, nil
 }
 
 //RestoreCache ...
 func RestoreCache(cluster *CacheCluster) {
-	snapshot, encoder, file, err := GetSnapshot()
+	snapshot, file, err := GetSnapshot()
+	defer file.Close()
+
 	if err != nil {
 		logutil.Warning(err)
 		return
 	}
-
-	cluster.encoder = encoder
-	cluster.snapshotFile = file
 
 	stats, err := file.Stat()
 	if err != nil {

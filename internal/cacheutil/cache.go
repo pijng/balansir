@@ -5,14 +5,12 @@ import (
 	"balansir/internal/logutil"
 	"bytes"
 	"crypto/md5"
-	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -40,8 +38,6 @@ func (f fnv64a) Sum(key string) uint64 {
 
 //CacheCluster ...
 type CacheCluster struct {
-	encoder          *gob.Encoder
-	snapshotFile     *os.File
 	backupManager    *BackupManager
 	shards           []*Shard
 	Hash             fnv64a
@@ -254,8 +250,6 @@ func RedefineCache(args *CacheClusterArgs) error {
 	}
 
 	newCluster := &CacheCluster{
-		encoder:          cluster.encoder,
-		snapshotFile:     cluster.snapshotFile,
 		backupManager:    cluster.backupManager,
 		Hits:             cluster.Hits,
 		Misses:           cluster.Misses,
