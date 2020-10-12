@@ -1,4 +1,4 @@
-import { createEvent, createStore, sample, createEffect } from 'effector';
+import { createEvent, createStore, sample, createEffect, split } from 'effector';
 import { updateCharts } from './update';
 import { $stats } from '../stats';
 import { $selectedRange, selectRange } from '../segmented_control';
@@ -44,6 +44,7 @@ sample({
 })
 
 const daySelected = createEvent()
+const splitSpansUpdate = createEvent()
 
 sample({
   source: [$selectedSpan, $spans, $times],
@@ -83,12 +84,32 @@ sample({
       }
     }
   },
-  target: $spans
+  target: [splitSpansUpdate, $spans]
+})
+
+const resetSpans = createEvent()
+sample({
+  source: $selectedRange,
+  clock: resetSpans,
+  fn: (range, _) => range,
+  target: selectRange
+})
+
+const updateMajorChart = createEvent()
+split({
+  source: splitSpansUpdate,
+  match: {
+    resetSpans: spans => !spans.from.active && !spans.to.active,
+    __: updateMajorChart,
+  },
+  cases: {
+    resetSpans: resetSpans
+  }
 })
 
 sample({
   source: [$charts, $stats],
-  clock: $spans,
+  clock: updateMajorChart,
   fn: ([charts, stats], spans) => {
     const {from, to} = spans
     const majorStats = stats.filter(a => {
