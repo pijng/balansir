@@ -14,7 +14,7 @@ const $isFilterVisible = createStore(false)
     if (params.target.className === 'filter' || params.target.className === 'filter-label') {
       return !state
     }
-    if (params.path.map(p => p.className).includes('tags-filter')) {
+    if (params.composedPath().map(p => p.className).includes('tags-filter')) {
       return state
     }
     return false

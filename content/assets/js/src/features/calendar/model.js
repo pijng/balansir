@@ -58,7 +58,7 @@ const $isVisible = createStore(false)
     if (params.target.className === 'filter' || params.target.className === 'filter-label') {
       return !state
     }
-    if (params.path.map(p => p.className).includes("calendar")) {
+    if (params.composedPath().map(p => p.className).includes("calendar")) {
       return state
     }
     return false
