@@ -507,6 +507,7 @@ body {
 .date-picker .calendar .time {
   margin: 12px auto 20px auto;
   width: fit-content;
+  width: -moz-fit-content;
 }
 
 .date-picker .calendar .time input {
