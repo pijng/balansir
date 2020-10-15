@@ -11,7 +11,9 @@ const getStatsFx = createEffect('getStatsFx', {
 })
 
 const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
-  handler: async() => {
+  handler: async(attempts = 1) => {
+    if (attempts > 5) return
+
     const url = "/balansir/metrics/collected_stats"
     const res = await fetch(url)
 
@@ -40,7 +42,7 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
       // to request collected logs again. This is a disgusting workaround, yet it does work
       // and helps us to avoid additional memory allocation on the server side to parse
       // collected logs.
-      getCollectedStatsFx()
+      getCollectedStatsFx(attempts+1)
     }
   }
 })
