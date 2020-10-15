@@ -8,6 +8,7 @@ import (
 	"balansir/internal/poolutil"
 	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
+	"balansir/internal/statusutil"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -27,22 +28,24 @@ type objects struct {
 	configuration *configutil.Configuration
 	servers       []*serverutil.Server
 	cache         *cacheutil.CacheCluster
+	statusCodes   *statusutil.StatusCodes
 }
 
 //Stats ...
 type Stats struct {
-	Timestamp           int64       `json:"timestamp"`
-	RequestsPerSecond   float64     `json:"requests_per_second"`
-	AverageResponseTime float64     `json:"average_response_time"`
-	MemoryUsage         int64       `json:"memory_usage"`
-	ErrorsCount         int64       `json:"errors_count"`
-	Port                int         `json:"http_port"`
-	TLSPort             int         `json:"https_port"`
-	Endpoints           []*endpoint `json:"endpoints"`
-	TransparentProxy    bool        `json:"transparent_proxy"`
-	Algorithm           string      `json:"balancing_algorithm"`
-	Cache               bool        `json:"cache"`
-	CacheInfo           cacheInfo   `json:"cache_info"`
+	Timestamp           int64         `json:"timestamp"`
+	RequestsPerSecond   float64       `json:"requests_per_second"`
+	AverageResponseTime float64       `json:"average_response_time"`
+	MemoryUsage         int64         `json:"memory_usage"`
+	ErrorsCount         int64         `json:"errors_count"`
+	Port                int           `json:"http_port"`
+	TLSPort             int           `json:"https_port"`
+	Endpoints           []*endpoint   `json:"endpoints"`
+	TransparentProxy    bool          `json:"transparent_proxy"`
+	Algorithm           string        `json:"balancing_algorithm"`
+	Cache               bool          `json:"cache"`
+	CacheInfo           cacheInfo     `json:"cache_info"`
+	StatusCodes         map[int]int64 `json:"status_codes"`
 }
 
 type endpoint struct {
@@ -66,7 +69,7 @@ func MetrictStats(w http.ResponseWriter, r *http.Request) {
 	val := getBalansirStats()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(val); err != nil {
+	if err := json.NewEncoder(w).Encode(&val); err != nil {
 		logutil.Warning(err)
 	}
 }
@@ -98,13 +101,14 @@ var metrics *objects
 var once sync.Once
 
 //InitMetricsMeta ...
-func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server) {
+func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*serverutil.Server, sc *statusutil.StatusCodes) {
 	cc := cacheutil.GetCluster()
 	metrics = &objects{
 		rateCounter:   rc,
 		configuration: c,
 		servers:       s,
 		cache:         cc,
+		statusCodes:   sc,
 	}
 
 	once.Do(func() {
@@ -118,7 +122,7 @@ func InitMetricsMeta(rc *rateutil.Rate, c *configutil.Configuration, s []*server
 	})
 }
 
-func getBalansirStats() Stats {
+func getBalansirStats() *Stats {
 	runtime.ReadMemStats(&mem)
 	endpoints := make([]*endpoint, len(metrics.servers))
 	for i, server := range metrics.servers {
@@ -145,6 +149,7 @@ func getBalansirStats() Stats {
 		TransparentProxy:    metrics.configuration.TransparentProxy,
 		Algorithm:           metrics.configuration.Algorithm,
 		Cache:               metrics.configuration.Cache,
+		StatusCodes:         metrics.statusCodes.Storage,
 	}
 
 	if metrics.configuration.Cache {
@@ -157,7 +162,7 @@ func getBalansirStats() Stats {
 		}
 	}
 
-	return stats
+	return &stats
 }
 
 //Metrics ...
@@ -178,7 +183,8 @@ func MetricsPolling() {
 	configuration := configutil.GetConfig()
 	pool := poolutil.GetPool()
 	rateCounter := rateutil.GetRateCounter()
-	InitMetricsMeta(rateCounter, configuration, pool.ServerList)
+	statusCodes := statusutil.GetStatusCodes()
+	InitMetricsMeta(rateCounter, configuration, pool.ServerList, statusCodes)
 }
 
 func getRSSUsage() int64 {

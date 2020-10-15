@@ -10,6 +10,7 @@ import (
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/rateutil"
+	"balansir/internal/statusutil"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
@@ -98,7 +99,8 @@ func fillConfiguration(file []byte) []error {
 	}
 
 	rateCounter := rateutil.GetRateCounter()
-	metricsutil.InitMetricsMeta(rateCounter, configuration, pool.ServerList)
+	statusCodes := statusutil.GetStatusCodes()
+	metricsutil.InitMetricsMeta(rateCounter, configuration, pool.ServerList, statusCodes)
 	return errs
 }
 

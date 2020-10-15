@@ -5,6 +5,7 @@ import (
 	"balansir/internal/configutil"
 	"balansir/internal/gziputil"
 	"balansir/internal/logutil"
+	"balansir/internal/statusutil"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +14,9 @@ import (
 
 //ModifyResponse ...
 func ModifyResponse(r *http.Response) error {
+	statusCodes := statusutil.GetStatusCodes()
+	statusCodes.HitStatus(r.StatusCode)
+
 	configuration := configutil.GetConfig()
 
 	//Check if response must be gzipped
