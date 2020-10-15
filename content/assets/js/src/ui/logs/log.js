@@ -11,18 +11,22 @@ const TAG_COLORS = {
 
 const Log = ($timestamp, $tag, $text, intl, scrollID, isRendered, $tags, $searchInput) => {
   h('div', () => {
+    // Normalize timestamp outside of spec and/or node to prevent recomputing
+    const $normalizedTimestamp = $timestamp.map(t => intl.format(new Date(t)))
+
     spec({
       attr: {class: "log"},
-      visible: combine($tags, $tag, $text, $searchInput, (tags, tag, text, searchInput) => {
+      visible: combine($tags, $normalizedTimestamp, $tag, $text, $searchInput, (tags, timestamp, tag, text, searchInput) => {
         const currentTag = tags.find(t => t.name === tag)
-        const matchSearch = text.toLowerCase().includes(searchInput.toLowerCase().trim())
-        return currentTag.checked && matchSearch
+        const matchText = text.toLowerCase().includes(searchInput.toLowerCase().trim())
+        const matchTimestamp = timestamp.toLowerCase().includes(searchInput.toLowerCase().trim())
+        return currentTag.checked && (matchText || matchTimestamp)
       })
     })
 
     h('div', {
       attr: {class: "column timestamp"},
-      text: $timestamp.map(t => intl.format(new Date(t)))
+      text: $normalizedTimestamp
     })
     h('div', {
       attr: {class: "column tag"},
