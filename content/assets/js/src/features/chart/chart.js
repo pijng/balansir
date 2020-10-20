@@ -6,13 +6,13 @@ const systemBlue = '10, 132, 255'
 // const systemYellow = '255, 214, 10'
 
 const chartsMeta = [
-  {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0},
-  {id: "chartRPM", c: systemBlue, l: "RPS", r: 0, bw: 1, tx: false, p: 0},
-  {id: "chartRSS", c: systemBlue, l: "RSS", r: 0, bw: 1, tx: false, p: 0},
-  {id: "chartERR", c: systemBlue, l: "ERRS", r: 0, bw: 1, tx: false, p: 0},
+  {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0, t: "line"},
+  {id: "chartRPM", c: systemBlue, l: "RPS", r: 0, bw: 1, tx: false, p: 0, t: "line"},
+  {id: "chartRSS", c: systemBlue, l: "RSS", r: 0, bw: 1, tx: false, p: 0, t: "line"},
+  {id: "chartCODES", c: systemBlue, l: "STATUS", r: 0, bw: 1, tx: false, p: 0, t: "bar"},
 ]
 
-const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chartPadding) => {
+const chartFabrik = (chart, {color, label, pointRadius, borderWidth, ticks, chartPadding, type}) => {
   var ctx = chart
 
   var gradient = ctx.createLinearGradient(0, 0, 0, 450);
@@ -21,8 +21,8 @@ const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chart
   gradient.addColorStop(0.7, `rgba(${color}, 0.15)`);
   gradient.addColorStop(1, `rgba(${color}, 0.1)`);
 
-  return new Chart(ctx, {
-    type: 'line',
+  config = {
+    type: type,
     data: {
       labels: [],
       datasets: [{
@@ -53,11 +53,6 @@ const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chart
           if (!tooltip) return;
           tooltip.displayColors = false;
         },
-        callbacks: {
-          title: function(tooltipItem) {
-            return formatDate(new Date(tooltipItem[0].label))
-          }
-        }
       },
       elements: {
         line: {
@@ -90,14 +85,24 @@ const chartFabrik = (chart, color, label, pointRadius, borderWidth, ticks, chart
             maxTicksLimit: 8,
             maxRotation: 0,
             fontFamily: "SF Pro Display Regular, 'SF Pro Display Regular', sans-serif",
-            callback: function(value) {
-              return formatDate(value);
-            },
           }
         }]
       },
     },
-  })
+  }
+
+  if (type === 'line') {
+    config.options.tooltips.callbacks = {
+      title: function(tooltipItem) {
+        return formatDate(new Date(tooltipItem[0].label))
+      }
+    }
+    config.options.scales.xAxes[0].ticks.callback = function(value) {
+      return formatDate(value);
+    }
+  }
+
+  return new Chart(ctx, config)
 }
 
 const formatDate = (date) => {
@@ -105,8 +110,17 @@ const formatDate = (date) => {
 }
 
 const createChart = (meta, node) => {
-  const {c, l, r, bw, tx, p} = meta
-  const chart = chartFabrik(node.getContext('2d'), c, l, r, bw, tx, p)
+  const {c, l, r, bw, tx, p, t} = meta
+  const chart = chartFabrik(node.getContext('2d'), {
+    color: c,
+    label: l,
+    pointRadius: r,
+    borderWidth: bw,
+    ticks: tx,
+    chartPadding: p,
+    type: t,
+  })
+
   addChart(chart)
 }
 

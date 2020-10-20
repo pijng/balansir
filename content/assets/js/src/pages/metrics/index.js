@@ -26,7 +26,7 @@ const Metrics = () => {
 
       MinorChart($RPM, "RPM", "chartRPM", initChart)
       MinorChart($RSS, "MEMORY", "chartRSS", initChart, 'MB')
-      MinorChart(0, "ERRORS", "chartERR", initChart)
+      MinorChart("\u00A0", "CODES", "chartCODES", initChart)
     })
 
     MajorChart($AVG, $99percentile, $90percentile, $uniqueDatesArray, selectRange,
