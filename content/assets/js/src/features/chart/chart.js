@@ -9,7 +9,7 @@ const chartsMeta = [
   {id: "chartAVGRT", c: systemRed, l: "MS", r: 0, bw: 1, tx: true, p: 0, t: "line"},
   {id: "chartRPM", c: systemBlue, l: "RPS", r: 0, bw: 1, tx: false, p: 0, t: "line"},
   {id: "chartRSS", c: systemBlue, l: "RSS", r: 0, bw: 1, tx: false, p: 0, t: "line"},
-  {id: "chartCODES", c: systemBlue, l: "STATUS", r: 0, bw: 1, tx: false, p: 0, t: "bar"},
+  {id: "chartCODES", c: systemBlue, l: "Count", r: 0, bw: 1, tx: false, p: 0, t: "bar"},
 ]
 
 const chartFabrik = (chart, {color, label, pointRadius, borderWidth, ticks, chartPadding, type}) => {
