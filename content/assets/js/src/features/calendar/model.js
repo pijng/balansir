@@ -2,45 +2,38 @@ import { sample, createStore, createEvent } from 'effector';
 import { $stats } from '../stats';
 import { selectRange } from '../segmented_control';
 
-const $uniqueDates = sample({
-  source: $stats,
-  fn: stats => stats.reduce((acc, elem) => {
+const $uniqueDatesArray = $stats.map(stats => {
+  stats = stats.reduce((acc, elem) => {
     const date = new Date(elem.timestamp)
     const [year, month, day]  = [date.getFullYear(), date.getMonth(), date.getDate()]
     acc[year] = acc[year] || {}
     acc[year][month] = Array.from(new Set( [...(acc[year][month] || []), day] ) )
     return acc;
   },{})
-})
 
-const $uniqueDatesArray = sample({
-  source: $uniqueDates,
-  fn: (state) => {
-    let arr = []
-    const keys = Object.keys(state)
-    for (const k of keys) {
-      const year = arr.find(a => a.year === k) || {year: k, months:[]}
-      for (const month in state[k]) {
-        const daysInMonth = new Date(year.year, parseInt(month)+1, 0).getDate()
-        const startingDay = new Date(year.year, parseInt(month), 1).getDay()-1
-        year.months = [
-          ...year.months,
-          {
-            month: month,
-            activeDays: state[k][month],
-            numberOfDays: [
-              ...Array.from(Array(startingDay), () => 0),
-              ...Array.from(Array(daysInMonth), (_,d)=>d+1)
-            ]
-          }
-        ]
-      }
-      arr = [...arr, year]
+  let arr = []
+  const keys = Object.keys(stats)
+  for (const k of keys) {
+    const year = arr.find(a => a.year === k) || {year: k, months:[]}
+    for (const month in stats[k]) {
+      const daysInMonth = new Date(year.year, parseInt(month)+1, 0).getDate()
+      const startingDay = new Date(year.year, parseInt(month), 1).getDay()-1
+      year.months = [
+        ...year.months,
+        {
+          month: month,
+          activeDays: stats[k][month],
+          numberOfDays: [
+            ...Array.from(Array(startingDay), () => 0),
+            ...Array.from(Array(daysInMonth), (_,d)=>d+1)
+          ]
+        }
+      ]
     }
-    return arr
+    arr = [...arr, year]
   }
+  return arr
 })
-
 
 const $spans = createStore({
   from: {active: false, date: null, time: ""},
