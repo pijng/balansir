@@ -21,7 +21,7 @@ const chartFabrik = (chart, {color, label, pointRadius, borderWidth, ticks, char
   gradient.addColorStop(0.7, `rgba(${color}, 0.15)`);
   gradient.addColorStop(1, `rgba(${color}, 0.1)`);
 
-  config = {
+  const config = {
     type: type,
     data: {
       labels: [],
