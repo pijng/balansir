@@ -149,7 +149,7 @@ func getBalansirStats() *Stats {
 		TransparentProxy:    metrics.configuration.TransparentProxy,
 		Algorithm:           metrics.configuration.Algorithm,
 		Cache:               metrics.configuration.Cache,
-		StatusCodes:         metrics.statusCodes.Storage,
+		StatusCodes:         metrics.statusCodes.GetStatuses(),
 	}
 
 	if metrics.configuration.Cache {

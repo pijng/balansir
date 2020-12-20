@@ -1,6 +1,8 @@
 package statusutil
 
-import "sync"
+import (
+	"sync"
+)
 
 //StatusCodes ...
 type StatusCodes struct {
@@ -22,10 +24,18 @@ func GetStatusCodes() *StatusCodes {
 	return statusCodes
 }
 
-//HitStatus ...
-func (sm *StatusCodes) HitStatus(code int) {
+//GetStatuses ...
+func (sm *StatusCodes) GetStatuses() map[int]int64 {
 	sm.mux.RLock()
 	defer sm.mux.RUnlock()
+
+	return sm.Storage
+}
+
+//HitStatus ...
+func (sm *StatusCodes) HitStatus(code int) {
+	sm.mux.Lock()
+	defer sm.mux.Unlock()
 
 	sm.Storage[code]++
 }
