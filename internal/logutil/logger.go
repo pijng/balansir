@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	infoColor    = "\033[1;40m%s\033[0m"
+	infoColor    = "\033[1;37m%s\033[0m"
 	noticeColor  = "\033[1;32m%s\033[0m"
 	warningColor = "\033[1;33m%s\033[0m"
 	errorColor   = "\033[1;31m%s\033[0m"
