@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@features/*": ["content/assets/js/src/features/*"],
+      "@lib/*": ["content/assets/js/src/lib/*"],
+      "@pages/*": ["content/assets/js/src/pages/*"],
+      "@routing/*": ["content/assets/js/src/routing/*"],
+      "@ui/*": ["content/assets/js/src/ui/*"]
+    }
+  }
+}

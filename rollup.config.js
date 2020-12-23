@@ -2,6 +2,8 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import { terser } from 'rollup-plugin-terser';
 import babel from '@rollup/plugin-babel';
+import hq from 'alias-hq'
+import alias from '@rollup/plugin-alias';
 
 const DEVELOPMENT = process.env.DEVELOPMENT
 
@@ -16,6 +18,9 @@ const config = {
     include: "content/assets/js/src/**",
   },
   plugins: [
+    alias({
+      entries: hq.get('rollup', { format: 'array' }),
+    }),
     resolve({
       browser: true
     }),
