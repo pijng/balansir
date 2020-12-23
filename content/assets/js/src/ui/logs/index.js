@@ -3,8 +3,8 @@ import { Log } from './log';
 import { Search } from './search';
 import { TagFilter } from './tag-filter';
 import { Bar } from './bar';
-import { getLocale } from '../../lib/locale';
-import { DATEFORMAT_OPTIONS } from '../../lib/dates';
+import { getLocale } from '@lib/locale';
+import { DATEFORMAT_OPTIONS } from '@lib/dates';
 
 const LogsBlock = ($logs, openTagFilter, $isFilterVisible, focusSearch, $isSearchFocused, toggleTag, $tags, searchLogs, $searchInput, clearSearch) => {
 

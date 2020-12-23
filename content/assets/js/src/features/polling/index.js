@@ -1,5 +1,5 @@
 import { createEffect } from 'effector';
-import { addStat, setStats } from '../stats';
+import { addStat, setStats } from '@features/stats';
 
 const getStatsFx = createEffect('getStatsFx', {
   handler: async() => {

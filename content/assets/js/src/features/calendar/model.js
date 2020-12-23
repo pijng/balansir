@@ -1,6 +1,6 @@
 import { sample, createStore, createEvent } from 'effector';
-import { $stats } from '../stats';
-import { selectRange } from '../segmented_control';
+import { $stats } from '@features/stats';
+import { selectRange } from '@features/segmented_control';
 
 const $uniqueDatesArray = $stats.map(stats => {
   stats = stats.reduce((acc, elem) => {

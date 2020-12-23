@@ -1,5 +1,5 @@
 import { createStore, forward, createEvent, guard, sample } from 'effector';
-import { getCollectedLogsFx } from '../polling';
+import { getCollectedLogsFx } from '@features/polling';
 
 const $logs = createStore([])
 

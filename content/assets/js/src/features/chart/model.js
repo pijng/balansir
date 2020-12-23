@@ -1,8 +1,8 @@
 import { createEvent, createStore, sample, createEffect, split } from 'effector';
 import { updateCharts } from './update';
-import { $stats } from '../stats';
-import { $selectedRange, selectRange } from '../segmented_control';
-import { $selectedSpan, $spans, $times } from '../calendar';
+import { $stats } from '@features/stats';
+import { $selectedRange, selectRange } from '@features/segmented_control';
+import { $selectedSpan, $spans, $times } from '@features/calendar';
 
 const addChart = createEvent()
 const $charts = createStore([])

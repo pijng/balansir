@@ -1,8 +1,8 @@
 import { h, spec } from 'forest';
-import { MajorChart, MinorChart, Navigation } from '../../ui';
-import { selectRange, $inputs } from '../../features/segmented_control';
-import { daySelected, initChart } from '../../features/chart';
-import { selectTime, $times, $monthSelected } from '../../features/calendar';
+import { MajorChart, MinorChart, Navigation } from '@ui/index';
+import { selectRange, $inputs } from '@features/segmented_control';
+import { daySelected, initChart } from '@features/chart';
+import { selectTime, $times, $monthSelected } from '@features/calendar';
 import {
   $uniqueDatesArray,
   $AVG,

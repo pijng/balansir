@@ -1,7 +1,7 @@
 import { sample } from 'effector';
-import { $uniqueDatesArray, $selectedSpan, selectSpan, openCalendar, $isVisible } from '../../features/calendar';
-import { $spans } from '../../features/calendar';
-import { $responseTimes, $filteredStats } from '../../features/stats';
+import { $uniqueDatesArray, $selectedSpan, selectSpan, openCalendar, $isVisible } from '@features/calendar';
+import { $spans } from '@features/calendar';
+import { $responseTimes, $filteredStats } from '@features/stats';
 
 const $AVG = sample({
   source: $responseTimes,

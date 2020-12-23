@@ -1,10 +1,10 @@
 import { h, spec, variant, node } from 'forest';
 import { createStore } from 'effector';
-import { getCollectedStatsFx, getStatsFx, getCollectedLogsFx } from '../features/polling';
-import { openCalendar } from '../features/calendar';
-import { Metrics } from '../pages/metrics';
-import { Logs } from '../pages/logs';
-import { terminateActiveEntities } from '../features/logs';
+import { getCollectedStatsFx, getStatsFx, getCollectedLogsFx } from '@features/polling';
+import { openCalendar } from '@features/calendar';
+import { Metrics } from '@pages/metrics';
+import { Logs } from '@pages/logs';
+import { terminateActiveEntities } from '@features/logs';
 
 const RoutePages = () => {
   const location = createStore(window.location.pathname)
@@ -13,7 +13,7 @@ const RoutePages = () => {
     source: location,
     key: path => path,
     cases: {
-  
+
       "/balansir/metrics": () => {
         h('section', () => {
           spec({
@@ -28,7 +28,7 @@ const RoutePages = () => {
           })
         })
       },
-  
+
       "/balansir/logs": () => {
         h('section', () => {
           spec({
@@ -43,7 +43,7 @@ const RoutePages = () => {
           })
         })
       }
-  
+
     }
   })
 }
