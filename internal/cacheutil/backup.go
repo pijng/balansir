@@ -81,7 +81,7 @@ func TakeCacheSnapshot() {
 	}
 	defer file.Close()
 
-	file.Truncate(0)
+	err = file.Truncate(0)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 		return
