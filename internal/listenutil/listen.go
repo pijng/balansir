@@ -65,7 +65,7 @@ func ServeTLSWithAutocert() {
 		logutil.Fatal(server.ListenAndServe())
 
 		<-done
-		gracefulShutdown(done, server)
+		gracefulShutdown(server)
 	}()
 
 	TLSConfig := tlsConfig()
@@ -86,7 +86,7 @@ func ServeTLSWithAutocert() {
 	logutil.Notice("Balansir is up!")
 
 	<-done
-	gracefulShutdown(done, TLSServer)
+	gracefulShutdown(TLSServer)
 }
 
 //ServeTLSWithSelfSignedCerts ...
@@ -107,7 +107,7 @@ func ServeTLSWithSelfSignedCerts() {
 		logutil.Fatal(server.ListenAndServe())
 
 		<-done
-		gracefulShutdown(done, server)
+		gracefulShutdown(server)
 	}()
 
 	TLSServer := &http.Server{
@@ -125,7 +125,7 @@ func ServeTLSWithSelfSignedCerts() {
 	logutil.Notice("Balansir is up!")
 
 	<-done
-	gracefulShutdown(done, TLSServer)
+	gracefulShutdown(TLSServer)
 }
 
 //Serve ...
@@ -148,10 +148,10 @@ func Serve() {
 	logutil.Notice("Balansir is up!")
 
 	<-done
-	gracefulShutdown(done, server)
+	gracefulShutdown(server)
 }
 
-func gracefulShutdown(signal chan os.Signal, server *http.Server) {
+func gracefulShutdown(server *http.Server) {
 	logutil.Notice("Shutting down Balansir...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

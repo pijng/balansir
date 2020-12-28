@@ -38,9 +38,11 @@ func (u *Updater) InvalidateCachedResponse(url string, mux *sync.RWMutex) error 
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%v%v", u.port, url), nil)
 	req.Header.Set("X-Balansir-Background-Update", "true")
-	_, err := u.client.Do(req)
+	res, err := u.client.Do(req)
 	if err != nil {
 		return err
 	}
+	defer res.Body.Close()
+
 	return nil
 }

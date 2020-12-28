@@ -93,7 +93,7 @@ func CollectedLogs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	_, err := w.Write(bytes)
 	if err != nil {
-		logutil.Warning(fmt.Errorf("Error writing collected logs to dashboard: %v", err))
+		logutil.Warning(fmt.Errorf("Error writing collected logs to dashboard: %w", err))
 	}
 }
 

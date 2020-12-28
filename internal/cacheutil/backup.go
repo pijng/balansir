@@ -76,7 +76,7 @@ func (bm *BackupManager) PersistCache() {
 func TakeCacheSnapshot() {
 	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
-		logutil.Warning(fmt.Errorf("failed to create/open cache snapshot file: %v", err))
+		logutil.Warning(fmt.Sprintf("failed to create/open cache snapshot file: %v", err))
 		return
 	}
 	defer file.Close()
@@ -112,7 +112,7 @@ func TakeCacheSnapshot() {
 func GetSnapshot() (Snapshot, *os.File, error) {
 	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
-		return Snapshot{}, nil, fmt.Errorf("failed to create/open cache snapshot file: %v", err)
+		return Snapshot{}, nil, fmt.Errorf("failed to create/open cache snapshot file: %w", err)
 	}
 
 	decoder := gob.NewDecoder(file)
