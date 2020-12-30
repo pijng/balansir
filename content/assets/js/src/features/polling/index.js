@@ -15,7 +15,7 @@ const getCollectedStatsFx = createEffect('getCollectedStatsFx', {
     const url = "/balansir/metrics/collected_stats"
     const res = await fetch(url)
     let result = await res.text()
-    result = result.trim().split('\n').map( JSON.parse )[0];
+    result = result.split('\n').map( JSON.parse ).flat();
     setStats(result)
   }
 })
