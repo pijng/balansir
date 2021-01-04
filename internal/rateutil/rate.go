@@ -9,8 +9,8 @@ import (
 
 //Rate ...
 type Rate struct {
-	ratemap     []int64
-	responsemap []int64
+	requestsCount   []int64
+	responseTimeSum []int64
 }
 
 var rate *Rate
@@ -20,15 +20,15 @@ var once sync.Once
 func GetRateCounter() *Rate {
 	once.Do(func() {
 		rate = &Rate{
-			ratemap:     make([]int64, 2),
-			responsemap: make([]int64, 2),
+			requestsCount:   make([]int64, 2),
+			responseTimeSum: make([]int64, 2),
 		}
 
 		go func() {
 			timer := time.NewTicker(1 * time.Second)
 			for {
 				<-timer.C
-				rate.swapMap()
+				rate.swap()
 			}
 		}()
 	})
@@ -36,36 +36,34 @@ func GetRateCounter() *Rate {
 	return rate
 }
 
-func (rate *Rate) swapMap() {
-	// The last second's stats are accumulated within second index of the corresponding map,
-	// so that we must "swap" value indexes when the current second ends, to make it available
-	// for the dashboard, because value at the first index is returned to the `metricsutil.Stats`
-	for _, accumulator := range [][]int64{rate.ratemap, rate.responsemap} {
-		atomic.StoreInt64(&accumulator[0], atomic.LoadInt64(&accumulator[1]))
-		atomic.StoreInt64(&accumulator[1], 0)
-	}
+func (rate *Rate) swap() {
+	atomic.StoreInt64(&rate.requestsCount[0], atomic.LoadInt64(&rate.requestsCount[1]))
+	atomic.StoreInt64(&rate.requestsCount[1], 0)
+
+	atomic.StoreInt64(&rate.responseTimeSum[0], atomic.LoadInt64(&rate.responseTimeSum[1]))
+	atomic.StoreInt64(&rate.responseTimeSum[1], 0)
 }
 
-//RateIncrement ...
-func (rate *Rate) RateIncrement() {
-	atomic.AddInt64(&rate.ratemap[1], 1)
+//HitRequest ...
+func (rate *Rate) HitRequest() {
+	atomic.AddInt64(&rate.requestsCount[1], 1)
 }
 
-//RateValue ...
-func (rate *Rate) RateValue() float64 {
-	return float64(atomic.LoadInt64(&rate.ratemap[0]))
+//RequestsPerSecond ...
+func (rate *Rate) RequestsPerSecond() float64 {
+	return float64(atomic.LoadInt64(&rate.requestsCount[0]))
 }
 
-//ResponseCount ...
-func (rate *Rate) ResponseCount(rt time.Time) {
+//CommitResponseTime ...
+func (rate *Rate) CommitResponseTime(rt time.Time) {
 	responseTime := time.Since(rt)
-	atomic.AddInt64(&rate.responsemap[1], responseTime.Microseconds())
+	atomic.AddInt64(&rate.responseTimeSum[1], responseTime.Microseconds())
 }
 
-//ResponseValue ...
-func (rate *Rate) ResponseValue() float64 {
-	if rate.RateValue() > 0 {
-		val := float64(atomic.LoadInt64(&rate.responsemap[0])) / rate.RateValue() / 1000
+//AverageResponseTime ...
+func (rate *Rate) AverageResponseTime() float64 {
+	if rate.RequestsPerSecond() > 0 {
+		val := float64(atomic.LoadInt64(&rate.responseTimeSum[0])) / rate.RequestsPerSecond() / 1000
 		return math.Round(val*100) / 100
 	}
 	return 0

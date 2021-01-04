@@ -139,8 +139,8 @@ func getBalansirStats() *Stats {
 
 	stats := Stats{
 		Timestamp:           time.Now().Unix() * 1000,
-		RequestsPerSecond:   metrics.rateCounter.RateValue(),
-		AverageResponseTime: metrics.rateCounter.ResponseValue(),
+		RequestsPerSecond:   metrics.rateCounter.RequestsPerSecond(),
+		AverageResponseTime: metrics.rateCounter.AverageResponseTime(),
 		MemoryUsage:         getRSSUsage(),
 		ErrorsCount:         getErrorsCount(),
 		Port:                metrics.configuration.Port,

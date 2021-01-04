@@ -138,9 +138,9 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("X-Balansir-Background-Update") == "" {
 		rateCounter := rateutil.GetRateCounter()
-		rateCounter.RateIncrement()
+		rateCounter.HitRequest()
 		rtStart := time.Now()
-		defer rateCounter.ResponseCount(rtStart)
+		defer rateCounter.CommitResponseTime(rtStart)
 	}
 
 	if configuration.TransparentProxy {
