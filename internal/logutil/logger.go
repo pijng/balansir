@@ -3,7 +3,6 @@ package logutil
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -47,19 +46,23 @@ type JSONlog struct {
 
 //Logger ...
 type Logger struct {
-	infoLog     *log.Logger
-	noticeLog   *log.Logger
-	warningLog  *log.Logger
-	errorLog    *log.Logger
-	fatalLog    *log.Logger
-	initialized bool
-	mx          sync.RWMutex
+	log *log.Logger
+	mx  sync.RWMutex
 }
 
 var defaultLogger *Logger
+var colors map[string]string
 
 //Init ...
 func Init() {
+	colors = map[string]string{
+		tagInfo:    infoColor,
+		tagNotice:  noticeColor,
+		tagWarning: warningColor,
+		tagError:   errorColor,
+		tagFatal:   fatalColor,
+	}
+
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		err := os.Mkdir(logDir, os.ModePerm)
 		if err != nil {
@@ -89,28 +92,19 @@ func Init() {
 		log.Fatalf("failed to create/open stats file: %v", err)
 	}
 
-	iLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-	nLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-	wLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-	eLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-	fLogs := log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	logs := log.New(lf, "", 0)
 
 	defaultLogger = &Logger{
-		infoLog:     iLogs,
-		noticeLog:   nLogs,
-		warningLog:  wLogs,
-		errorLog:    eLogs,
-		fatalLog:    fLogs,
-		initialized: true,
+		log: logs,
 	}
 }
 
 func openExistingOrNew(path string) (*os.File, bool, error) {
 	var lf *os.File
-	_, err := os.Stat(path)
+	_, notExist := os.Stat(path)
+	lf, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 
-	if os.IsNotExist(err) {
-		lf, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	if os.IsNotExist(notExist) {
 		if err != nil {
 			return nil, false, err
 		}
@@ -128,11 +122,7 @@ func (l *Logger) ensureLogExist() {
 	}
 
 	if new {
-		l.infoLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-		l.noticeLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-		l.warningLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-		l.errorLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
-		l.fatalLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+		l.log = log.New(lf, "", 0)
 	}
 }
 
@@ -142,23 +132,7 @@ func (l *Logger) output(severity string, txt string) {
 
 	l.ensureLogExist()
 
-	switch severity {
-	case tagInfo:
-		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt)) //nolint
-
-	case tagNotice:
-		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt)) //nolint
-
-	case tagWarning:
-		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt)) //nolint
-
-	case tagError:
-		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt)) //nolint
-
-	case tagFatal:
-		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt)) //nolint
-	}
-
+	l.log.Output(3, logFormat(colors[severity], dateFormat(time.Now()), severity, txt))
 	l.jsonLog(time.Now(), severity, txt)
 }
 
@@ -174,7 +148,7 @@ func dateFormat(cTime time.Time) string {
 }
 
 func (l *Logger) malformedJSON(err error) {
-	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
+	l.log.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
 func (l *Logger) jsonLog(cTime time.Time, tag string, txt string) {
