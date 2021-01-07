@@ -74,17 +74,17 @@ func Init() {
 		}
 	}
 
-	lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	lf, _, err := openExistingOrNew(logPath)
 	if err != nil {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
 
-	_, err = os.OpenFile(JSONPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	_, _, err = openExistingOrNew(JSONPath)
 	if err != nil {
 		log.Fatalf("failed to create/open log file: %v", err)
 	}
 
-	_, err = os.OpenFile(StatsPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	_, _, err = openExistingOrNew(StatsPath)
 	if err != nil {
 		log.Fatalf("failed to create/open stats file: %v", err)
 	}
@@ -105,31 +105,61 @@ func Init() {
 	}
 }
 
+func openExistingOrNew(path string) (*os.File, bool, error) {
+	var lf *os.File
+	_, err := os.Stat(path)
+
+	if os.IsNotExist(err) {
+		lf, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return lf, true, nil
+	}
+
+	return lf, false, nil
+}
+
+func (l *Logger) ensureLogExist() {
+	lf, new, err := openExistingOrNew(logPath)
+	if err != nil {
+		log.Fatalf("failed to create/open log file: %v", err)
+	}
+
+	if new {
+		l.infoLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+		l.noticeLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+		l.warningLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+		l.errorLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+		l.fatalLog = log.New(io.MultiWriter([]io.Writer{lf}...), "", 0)
+	}
+}
+
 func (l *Logger) output(severity string, txt string) {
 	l.mx.Lock()
 	defer l.mx.Unlock()
 
+	l.ensureLogExist()
+
 	switch severity {
 	case tagInfo:
 		l.infoLog.Output(3, logFormat(infoColor, dateFormat(time.Now()), tagInfo, txt)) //nolint
-		l.jsonLogger(time.Now(), tagInfo, txt)
 
 	case tagNotice:
 		l.noticeLog.Output(3, logFormat(noticeColor, dateFormat(time.Now()), tagNotice, txt)) //nolint
-		l.jsonLogger(time.Now(), tagNotice, txt)
 
 	case tagWarning:
 		l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, txt)) //nolint
-		l.jsonLogger(time.Now(), tagWarning, txt)
 
 	case tagError:
 		l.errorLog.Output(3, logFormat(errorColor, dateFormat(time.Now()), tagError, txt)) //nolint
-		l.jsonLogger(time.Now(), tagError, txt)
 
 	case tagFatal:
 		l.fatalLog.Output(3, logFormat(fatalColor, dateFormat(time.Now()), tagFatal, txt)) //nolint
-		l.jsonLogger(time.Now(), tagFatal, txt)
 	}
+
+	l.jsonLog(time.Now(), severity, txt)
 }
 
 func logFormat(color string, txt ...string) string {
@@ -147,7 +177,7 @@ func (l *Logger) malformedJSON(err error) {
 	l.warningLog.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
-func (l *Logger) jsonLogger(cTime time.Time, tag string, txt string) {
+func (l *Logger) jsonLog(cTime time.Time, tag string, txt string) {
 	file, err := os.OpenFile(JSONPath, os.O_RDWR, 0644)
 	if err != nil {
 		l.malformedJSON(err)
