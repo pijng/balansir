@@ -46,8 +46,8 @@ type JSONlog struct {
 
 //Logger ...
 type Logger struct {
-	log *log.Logger
-	mx  sync.RWMutex
+	logger *log.Logger
+	mux    sync.RWMutex
 }
 
 var defaultLogger *Logger
@@ -63,100 +63,65 @@ func Init() {
 		tagFatal:   fatalColor,
 	}
 
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		err := os.Mkdir(logDir, os.ModePerm)
-		if err != nil {
-			log.Fatalf("failed to create './logs' directory: %v", err)
-		}
-	}
+	ensureDirExist(rootedPath(logDir))
+	ensureDirExist(rootedPath(jsonDir))
 
-	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
-		err := os.Mkdir(jsonDir, os.ModePerm)
-		if err != nil {
-			log.Fatalf("failed to create './logs/.dashboard' directory: %v", err)
-		}
-	}
+	openOrCreateFile(rootedPath(JSONPath))
+	openOrCreateFile(rootedPath(StatsPath))
 
-	lf, _, err := openExistingOrNew(logPath)
-	if err != nil {
-		log.Fatalf("failed to create/open log file: %v", err)
-	}
-
-	_, _, err = openExistingOrNew(JSONPath)
-	if err != nil {
-		log.Fatalf("failed to create/open log file: %v", err)
-	}
-
-	_, _, err = openExistingOrNew(StatsPath)
-	if err != nil {
-		log.Fatalf("failed to create/open stats file: %v", err)
-	}
-
-	logs := log.New(lf, "", 0)
+	lf, _ := openOrCreateFile(rootedPath(logPath))
+	logger := log.New(lf, "", 0)
 
 	defaultLogger = &Logger{
-		log: logs,
+		logger: logger,
 	}
 }
 
-func openExistingOrNew(path string) (*os.File, bool, error) {
-	var lf *os.File
-	_, notExist := os.Stat(path)
-	lf, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
-
-	if os.IsNotExist(notExist) {
+func ensureDirExist(path string) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err := os.Mkdir(path, os.ModePerm)
 		if err != nil {
-			return nil, false, err
+			log.Fatalf("failed to create %s directory: %v", path, err)
+		}
+	}
+}
+
+func (l *Logger) ensureFileExist(path string) {
+	lf, new := openOrCreateFile(path)
+
+	if new && path == logPath {
+		l.logger = log.New(lf, "", 0)
+	}
+}
+
+func openOrCreateFile(path string) (*os.File, bool) {
+	_, errNotExist := os.Stat(path)
+	lf, err := os.OpenFile(path, getFileFlags(path), 0660)
+
+	if os.IsNotExist(errNotExist) {
+		if err != nil {
+			log.Fatalf("failed to create/open %s file: %v", path, err)
+			return nil, false
 		}
 
-		return lf, true, nil
+		return lf, true
 	}
 
-	return lf, false, nil
-}
-
-func (l *Logger) ensureLogExist() {
-	lf, new, err := openExistingOrNew(logPath)
-	if err != nil {
-		log.Fatalf("failed to create/open log file: %v", err)
-	}
-
-	if new {
-		l.log = log.New(lf, "", 0)
-	}
+	return lf, false
 }
 
 func (l *Logger) output(severity string, txt string) {
-	l.mx.Lock()
-	defer l.mx.Unlock()
+	l.mux.Lock()
+	defer l.mux.Unlock()
 
-	l.ensureLogExist()
+	l.ensureFileExist(logPath)
 
-	l.log.Output(3, logFormat(colors[severity], dateFormat(time.Now()), severity, txt))
+	l.logger.Output(3, logFormat(colors[severity], dateFormat(time.Now()), severity, txt))
 	l.jsonLog(time.Now(), severity, txt)
 }
 
-func logFormat(color string, txt ...string) string {
-	return fmt.Sprintf(color, strings.Join(txt, " "))
-}
-
-func dateFormat(cTime time.Time) string {
-	dateStamp := cTime.Format("2006/01/02")
-	timestamp := cTime.Format("15:04:05")
-
-	return fmt.Sprintf("%v %v ", dateStamp, timestamp)
-}
-
-func (l *Logger) malformedJSON(err error) {
-	l.log.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
-}
-
 func (l *Logger) jsonLog(cTime time.Time, tag string, txt string) {
-	file, err := os.OpenFile(JSONPath, os.O_RDWR, 0644)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
+	file, _ := openOrCreateFile(JSONPath)
 	defer file.Close()
 
 	bytes, err := ioutil.ReadAll(file)
@@ -197,14 +162,10 @@ var sFile *os.File
 var sErr error
 
 func (l *Logger) stats(stats interface{}) {
-	l.mx.Lock()
-	defer l.mx.Unlock()
+	l.mux.Lock()
+	defer l.mux.Unlock()
 
-	sFile, sErr = os.OpenFile(StatsPath, os.O_RDWR, 0644)
-	if sErr != nil {
-		l.malformedJSON(sErr)
-		return
-	}
+	sFile, _ = openOrCreateFile(StatsPath)
 	defer sFile.Close()
 
 	info, err := sFile.Stat()
@@ -238,6 +199,25 @@ func (l *Logger) stats(stats interface{}) {
 	if err != nil {
 		Warning(err)
 	}
+}
+
+func (l *Logger) malformedJSON(err error) {
+	l.logger.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
+}
+
+func getFileFlags(path string) int {
+	if path == JSONPath || path == StatsPath {
+		return os.O_CREATE | os.O_RDWR
+	}
+	return os.O_CREATE | os.O_WRONLY | os.O_APPEND
+}
+
+func rootedPath(path string) string {
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("failed to get root path: %v", err)
+	}
+	return fmt.Sprintf("%s/%s", wd, path)
 }
 
 //Info ...
