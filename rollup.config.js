@@ -2,7 +2,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import { terser } from 'rollup-plugin-terser';
 import babel from '@rollup/plugin-babel';
-import hq from 'alias-hq'
+import hq from 'alias-hq';
 import alias from '@rollup/plugin-alias';
 
 const DEVELOPMENT = process.env.DEVELOPMENT
