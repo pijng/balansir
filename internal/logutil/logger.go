@@ -40,7 +40,9 @@ const (
 )
 
 const (
-	logMaxSize = 100 * 1024 * 1024
+	megabyte     = 1024 * 1024
+	logMaxSize   = 100
+	logMaxSizeMB = logMaxSize * megabyte
 )
 
 //JSONlog ...
@@ -52,13 +54,11 @@ type JSONlog struct {
 
 //Logger ...
 type Logger struct {
-	logger      *log.Logger
-	logFile     *os.File
-	jsonFile    *os.File
-	statsFile   *os.File
-	jsonBuffer  []byte
-	statsBuffer []byte
-	mux         sync.RWMutex
+	logger    *log.Logger
+	logFile   *os.File
+	jsonFile  *os.File
+	statsFile *os.File
+	mux       sync.RWMutex
 }
 
 var defaultLogger *Logger
@@ -136,65 +136,31 @@ func (l *Logger) output(severity string, txt string) {
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
-	l.log(severity, txt)
+	l.log(time.Now(), severity, txt)
 	l.logJSON(time.Now(), severity, txt)
 }
 
-func (l *Logger) log(severity string, txt string) {
+func (l *Logger) log(cTime time.Time, severity string, txt string) {
+	if fileSize(l.logFile) > logMaxSizeMB {
+		l.moveLog()
+	}
 	l.ensureFileExist(logPath)
 
-	if fileSize(l.logFile) > logMaxSize {
-		l.moveLog()
-		l.ensureFileExist(logPath)
-	}
-
-	l.logger.Output(3, logFormat(colors[severity], dateFormat(time.Now()), severity, txt))
+	l.logger.Output(3, logFormat(colors[severity], dateFormat(cTime), severity, txt))
 }
 
 func (l *Logger) logJSON(cTime time.Time, tag string, txt string) {
-	info, err := l.jsonFile.Stat()
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-	length := info.Size()
-
-	if length == 0 {
-		_, err = l.jsonFile.WriteAt([]byte("[]"), 0)
-		length = 2
-		if err != nil {
-			Warning(err)
-			return
-		}
-	}
-
-	// trim tag's trailing spaces – we use them in a standard stdout to show logs in a
-	// consistent way. On the frontend we use table columns and styles to create that consistency.
 	tag = strings.TrimSpace(tag)
-	jsonLog := JSONlog{Timestamp: cTime, Tag: tag, Text: txt}
-
-	l.jsonBuffer, err = json.Marshal(jsonLog)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-
-	if length > 2 {
-		l.jsonBuffer = append([]byte(","), l.jsonBuffer...)
-	}
-	l.jsonBuffer = append(l.jsonBuffer, []byte("]")...)
-
-	_, err = l.jsonFile.WriteAt(l.jsonBuffer, length-1)
-	if err != nil {
-		Warning(err)
-	}
+	data := JSONlog{Timestamp: cTime, Tag: tag, Text: txt}
+	l.writeJSON(l.jsonFile, data)
 }
 
 func (l *Logger) stats(stats interface{}) {
-	l.mux.Lock()
-	defer l.mux.Unlock()
+	l.writeJSON(l.statsFile, stats)
+}
 
-	info, err := l.statsFile.Stat()
+func (l *Logger) writeJSON(file *os.File, data interface{}) {
+	info, err := file.Stat()
 	if err != nil {
 		l.malformedJSON(err)
 		return
@@ -202,7 +168,7 @@ func (l *Logger) stats(stats interface{}) {
 	length := info.Size()
 
 	if length == 0 {
-		_, err = l.statsFile.WriteAt([]byte("[]"), 0)
+		_, err = file.WriteAt([]byte("[]"), 0)
 		length = 2
 		if err != nil {
 			Warning(err)
@@ -210,25 +176,21 @@ func (l *Logger) stats(stats interface{}) {
 		}
 	}
 
-	l.statsBuffer, err = json.Marshal(stats)
+	buffer, err := json.Marshal(data)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
 
 	if length > 2 {
-		l.statsBuffer = append([]byte(","), l.statsBuffer...)
+		buffer = append([]byte(","), buffer...)
 	}
-	l.statsBuffer = append(l.statsBuffer, []byte("]")...)
+	buffer = append(buffer, []byte("]")...)
 
-	_, err = l.statsFile.WriteAt(l.statsBuffer, length-1)
+	_, err = file.WriteAt(buffer, length-1)
 	if err != nil {
 		Warning(err)
 	}
-}
-
-func (l *Logger) malformedJSON(err error) {
-	l.logger.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
 func (l *Logger) moveLog() {
@@ -242,20 +204,8 @@ func (l *Logger) moveLog() {
 	}
 }
 
-func fileSize(file *os.File) int64 {
-	stat, err := file.Stat()
-	if err != nil {
-		log.Fatalf("failed to read %s info: %v", file.Name(), err)
-	}
-
-	return stat.Size()
-}
-
-func getFileFlags(path string) int {
-	if path == JSONPath || path == StatsPath {
-		return os.O_CREATE | os.O_RDWR
-	}
-	return os.O_CREATE | os.O_WRONLY | os.O_APPEND
+func (l *Logger) malformedJSON(err error) {
+	l.logger.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
 //Info ...
