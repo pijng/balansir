@@ -3,7 +3,6 @@ package logutil
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -28,13 +27,20 @@ const (
 )
 
 const (
-	logDir  = "./log"
-	logPath = "./log/balansir.log"
-	jsonDir = "./log/.dashboard"
+	logDir      = "./log"
+	jsonDir     = "./log/.dashboard"
+	logPrefix   = "balansir"
+	jsonPrefix  = "logs"
+	statsPrefix = "stats"
+	logPath     = "./log/balansir.log"
 	//JSONPath ...
 	JSONPath = "./log/.dashboard/logs.json"
 	//StatsPath ...
 	StatsPath = "./log/.dashboard/stats.json"
+)
+
+const (
+	logMaxSize = 100 * 1024 * 1024
 )
 
 //JSONlog ...
@@ -46,8 +52,13 @@ type JSONlog struct {
 
 //Logger ...
 type Logger struct {
-	logger *log.Logger
-	mux    sync.RWMutex
+	logger      *log.Logger
+	logFile     *os.File
+	jsonFile    *os.File
+	statsFile   *os.File
+	jsonBuffer  []byte
+	statsBuffer []byte
+	mux         sync.RWMutex
 }
 
 var defaultLogger *Logger
@@ -63,17 +74,20 @@ func Init() {
 		tagFatal:   fatalColor,
 	}
 
-	ensureDirExist(rootedPath(logDir))
-	ensureDirExist(rootedPath(jsonDir))
+	ensureDirExist(logDir)
+	ensureDirExist(jsonDir)
 
-	openOrCreateFile(rootedPath(JSONPath))
-	openOrCreateFile(rootedPath(StatsPath))
+	jsonFile, _ := openOrCreateFile(JSONPath)
+	statsFile, _ := openOrCreateFile(StatsPath)
+	logFile, _ := openOrCreateFile(logPath)
 
-	lf, _ := openOrCreateFile(rootedPath(logPath))
-	logger := log.New(lf, "", 0)
+	logger := log.New(logFile, "", 0)
 
 	defaultLogger = &Logger{
-		logger: logger,
+		logger:    logger,
+		logFile:   logFile,
+		jsonFile:  jsonFile,
+		statsFile: statsFile,
 	}
 }
 
@@ -87,16 +101,24 @@ func ensureDirExist(path string) {
 }
 
 func (l *Logger) ensureFileExist(path string) {
-	lf, new := openOrCreateFile(path)
+	file, new := openOrCreateFile(path)
 
-	if new && path == logPath {
-		l.logger = log.New(lf, "", 0)
+	if new {
+		switch path {
+		case logPath:
+			l.logger = log.New(file, "", 0)
+			l.logFile = file
+		case JSONPath:
+			l.jsonFile = file
+		case StatsPath:
+			l.statsFile = file
+		}
 	}
 }
 
 func openOrCreateFile(path string) (*os.File, bool) {
 	_, errNotExist := os.Stat(path)
-	lf, err := os.OpenFile(path, getFileFlags(path), 0660)
+	file, err := os.OpenFile(path, getFileFlags(path), 0660)
 
 	if os.IsNotExist(errNotExist) {
 		if err != nil {
@@ -104,71 +126,33 @@ func openOrCreateFile(path string) (*os.File, bool) {
 			return nil, false
 		}
 
-		return lf, true
+		return file, true
 	}
 
-	return lf, false
+	return file, false
 }
 
 func (l *Logger) output(severity string, txt string) {
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
+	l.log(severity, txt)
+	l.logJSON(time.Now(), severity, txt)
+}
+
+func (l *Logger) log(severity string, txt string) {
 	l.ensureFileExist(logPath)
 
+	if fileSize(l.logFile) > logMaxSize {
+		l.moveLog()
+		l.ensureFileExist(logPath)
+	}
+
 	l.logger.Output(3, logFormat(colors[severity], dateFormat(time.Now()), severity, txt))
-	l.jsonLog(time.Now(), severity, txt)
 }
 
-func (l *Logger) jsonLog(cTime time.Time, tag string, txt string) {
-	file, _ := openOrCreateFile(JSONPath)
-	defer file.Close()
-
-	bytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-	if len(bytes) == 0 {
-		bytes = []byte("[]")
-	}
-
-	var jsonLogs []JSONlog
-	err = json.Unmarshal(bytes, &jsonLogs)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-
-	// trim tag's trailing spaces – we use them in a standard stdout to show logs in a
-	// consistent way. On the frontend we use table columns and styles to create that consistency.
-	tag = strings.TrimSpace(tag)
-	jsonLogs = append(jsonLogs, JSONlog{Timestamp: cTime, Tag: tag, Text: txt})
-	newBytes, err := json.Marshal(jsonLogs)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-
-	_, err = file.WriteAt(newBytes, 0)
-	if err != nil {
-		l.malformedJSON(err)
-		return
-	}
-}
-
-var jsonLogs []byte
-var sFile *os.File
-var sErr error
-
-func (l *Logger) stats(stats interface{}) {
-	l.mux.Lock()
-	defer l.mux.Unlock()
-
-	sFile, _ = openOrCreateFile(StatsPath)
-	defer sFile.Close()
-
-	info, err := sFile.Stat()
+func (l *Logger) logJSON(cTime time.Time, tag string, txt string) {
+	info, err := l.jsonFile.Stat()
 	if err != nil {
 		l.malformedJSON(err)
 		return
@@ -176,7 +160,7 @@ func (l *Logger) stats(stats interface{}) {
 	length := info.Size()
 
 	if length == 0 {
-		_, err = sFile.WriteAt([]byte("[]"), 0)
+		_, err = l.jsonFile.WriteAt([]byte("[]"), 0)
 		length = 2
 		if err != nil {
 			Warning(err)
@@ -184,18 +168,60 @@ func (l *Logger) stats(stats interface{}) {
 		}
 	}
 
-	jsonLogs, err = json.Marshal(stats)
+	// trim tag's trailing spaces – we use them in a standard stdout to show logs in a
+	// consistent way. On the frontend we use table columns and styles to create that consistency.
+	tag = strings.TrimSpace(tag)
+	jsonLog := JSONlog{Timestamp: cTime, Tag: tag, Text: txt}
+
+	l.jsonBuffer, err = json.Marshal(jsonLog)
 	if err != nil {
 		l.malformedJSON(err)
 		return
 	}
 
 	if length > 2 {
-		jsonLogs = append([]byte(","), jsonLogs...)
+		l.jsonBuffer = append([]byte(","), l.jsonBuffer...)
 	}
-	jsonLogs = append(jsonLogs, []byte("]")...)
+	l.jsonBuffer = append(l.jsonBuffer, []byte("]")...)
 
-	_, err = sFile.WriteAt(jsonLogs, length-1)
+	_, err = l.jsonFile.WriteAt(l.jsonBuffer, length-1)
+	if err != nil {
+		Warning(err)
+	}
+}
+
+func (l *Logger) stats(stats interface{}) {
+	l.mux.Lock()
+	defer l.mux.Unlock()
+
+	info, err := l.statsFile.Stat()
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+	length := info.Size()
+
+	if length == 0 {
+		_, err = l.statsFile.WriteAt([]byte("[]"), 0)
+		length = 2
+		if err != nil {
+			Warning(err)
+			return
+		}
+	}
+
+	l.statsBuffer, err = json.Marshal(stats)
+	if err != nil {
+		l.malformedJSON(err)
+		return
+	}
+
+	if length > 2 {
+		l.statsBuffer = append([]byte(","), l.statsBuffer...)
+	}
+	l.statsBuffer = append(l.statsBuffer, []byte("]")...)
+
+	_, err = l.statsFile.WriteAt(l.statsBuffer, length-1)
 	if err != nil {
 		Warning(err)
 	}
@@ -205,19 +231,31 @@ func (l *Logger) malformedJSON(err error) {
 	l.logger.Output(3, logFormat(warningColor, dateFormat(time.Now()), tagWarning, fmt.Sprintf("%s malformed: %v", JSONPath, err))) //nolint
 }
 
+func (l *Logger) moveLog() {
+	defer l.logFile.Close()
+
+	newName := fmt.Sprintf("./%s/%s-%v.log", logDir, logPrefix, time.Now().Unix())
+	err := os.Rename(l.logFile.Name(), newName)
+
+	if err != nil {
+		log.Fatalf("failed to rename %s file: %v", l.logFile.Name(), err)
+	}
+}
+
+func fileSize(file *os.File) int64 {
+	stat, err := file.Stat()
+	if err != nil {
+		log.Fatalf("failed to read %s info: %v", file.Name(), err)
+	}
+
+	return stat.Size()
+}
+
 func getFileFlags(path string) int {
 	if path == JSONPath || path == StatsPath {
 		return os.O_CREATE | os.O_RDWR
 	}
 	return os.O_CREATE | os.O_WRONLY | os.O_APPEND
-}
-
-func rootedPath(path string) string {
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("failed to get root path: %v", err)
-	}
-	return fmt.Sprintf("%s/%s", wd, path)
 }
 
 //Info ...
