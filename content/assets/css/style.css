@@ -695,8 +695,6 @@ body {
 .logs-block .logs-table {
   width: 100%;
   height: 72vh;
-  display: grid;
-  grid-auto-rows: minmax(min-content, max-content);
   overflow-y: scroll;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none;  /* Internet Explorer 10+ */
