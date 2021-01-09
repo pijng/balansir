@@ -155,7 +155,7 @@ func (l *Logger) logJSON(cTime time.Time, tag string, txt string) {
 	l.writeJSON(l.jsonFile, data)
 }
 
-func (l *Logger) stats(stats interface{}) {
+func (l *Logger) logStats(stats interface{}) {
 	l.writeJSON(l.statsFile, stats)
 }
 
@@ -235,5 +235,5 @@ func Fatal(txt interface{}) {
 
 //Stats ...
 func Stats(stats interface{}) {
-	defaultLogger.stats(stats)
+	defaultLogger.logStats(stats)
 }

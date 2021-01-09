@@ -22,30 +22,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func serversCheck() {
-	configuration := configutil.GetConfig()
-	pool := poolutil.GetPool()
-	timer := time.NewTicker(time.Duration(configuration.Delay) * time.Second)
-	for {
-		<-timer.C
-
-		pool.Guard.Wait()
-		inActive := 0
-		for _, server := range pool.ServerList {
-			active := server.CheckAlive(&configuration.Timeout)
-			if !active {
-				inActive++
-			}
-		}
-		if inActive == len(pool.ServerList) {
-			logutil.Error("All servers are down!")
-		}
-		configuration.Mux.Lock()
-		timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
-		configuration.Mux.Unlock()
-	}
-}
-
 var serverPoolHash string
 var cacheHash string
 
@@ -73,7 +49,7 @@ func fillConfiguration(file []byte) []error {
 			errs = append(errs, err)
 		}
 		if newPool != nil {
-			pool = poolutil.SetPool(newPool)
+			poolutil.SetPool(newPool)
 		}
 	}
 
@@ -158,7 +134,7 @@ func main() {
 		}
 	}
 
-	go serversCheck()
+	go poolutil.PoolCheck()
 	go configWatch()
 
 	configuration := configutil.GetConfig()

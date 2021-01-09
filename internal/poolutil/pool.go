@@ -2,6 +2,7 @@ package poolutil
 
 import (
 	"balansir/internal/configutil"
+	"balansir/internal/logutil"
 	"balansir/internal/proxyutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
@@ -49,9 +50,8 @@ func GetPool() *ServerPool {
 }
 
 //SetPool ...
-func SetPool(newPool *ServerPool) *ServerPool {
+func SetPool(newPool *ServerPool) {
 	pool = newPool
-	return pool
 }
 
 //GetPoolChoice ...
@@ -227,6 +227,33 @@ func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard
 	}
 
 	return newPool, nil
+}
+
+//PoolCheck ...
+func PoolCheck() {
+	configuration := configutil.GetConfig()
+	timer := time.NewTicker(time.Duration(configuration.Delay) * time.Second)
+	for {
+		<-timer.C
+
+		pool.Guard.Wait()
+		inActive := 0
+
+		for _, server := range pool.ServerList {
+			active := server.CheckAlive(&configuration.Timeout)
+			if !active {
+				inActive++
+			}
+		}
+
+		if inActive == len(pool.ServerList) {
+			logutil.Error("All servers are down!")
+		}
+
+		configuration.Mux.Lock()
+		timer = time.NewTicker(time.Duration(configuration.Delay) * time.Second)
+		configuration.Mux.Unlock()
+	}
 }
 
 func randomStringBytes(n int) string {
