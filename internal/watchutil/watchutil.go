@@ -1,4 +1,4 @@
-package configwatch
+package watchutil
 
 import (
 	"balansir/internal/cacheutil"

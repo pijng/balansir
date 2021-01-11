@@ -2,7 +2,7 @@ package main
 
 import (
 	"balansir/internal/configutil"
-	"balansir/internal/configwatch"
+	"balansir/internal/watchutil"
 	"balansir/internal/limitutil"
 	"balansir/internal/listenutil"
 	"balansir/internal/logutil"
@@ -24,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if errs := configwatch.FillConfiguration(file); errs != nil {
+	if errs := watchutil.FillConfiguration(file); errs != nil {
 		logutil.Fatal("Configuration errors:")
 		for i := 0; i < len(errs); i++ {
 			logutil.Fatal(errs[i])
@@ -36,7 +36,7 @@ func main() {
 	}
 
 	go poolutil.PoolCheck()
-	go configwatch.Watch()
+	go watchutil.Watch()
 
 	configuration := configutil.GetConfig()
 
