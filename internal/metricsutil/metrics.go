@@ -148,11 +148,11 @@ func getBalansirStats() *Stats {
 		Endpoints:           endpoints,
 		TransparentProxy:    metrics.configuration.TransparentProxy,
 		Algorithm:           metrics.configuration.Algorithm,
-		Cache:               metrics.configuration.Cache,
+		Cache:               metrics.configuration.Cache.Enabled,
 		StatusCodes:         metrics.statusCodes.GetStatuses(),
 	}
 
-	if metrics.configuration.Cache {
+	if metrics.configuration.Cache.Enabled {
 		stats.CacheInfo = cacheInfo{
 			HitRatio:     metrics.cache.GetHitRatio(),
 			ShardsAmount: metrics.cache.ShardsAmount,

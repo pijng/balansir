@@ -53,16 +53,16 @@ func fillConfiguration(file []byte) []error {
 		}
 	}
 
-	if configuration.Cache {
+	if configuration.Cache.Enabled {
 		args := cacheutil.CacheClusterArgs{
-			ShardsAmount:     configuration.CacheShardsAmount,
-			ShardSize:        configuration.CacheShardSize,
-			ExceedFallback:   configuration.CacheShardExceedFallback,
-			CacheAlgorithm:   configuration.CacheAlgorithm,
-			BackgroundUpdate: configuration.CacheBackgroundUpdate,
+			ShardsAmount:     configuration.Cache.ShardsAmount,
+			ShardSize:        configuration.Cache.ShardSize,
+			ExceedFallback:   configuration.Cache.ShardExceedFallback,
+			CacheAlgorithm:   configuration.Cache.Algorithm,
+			BackgroundUpdate: configuration.Cache.BackgroundUpdate,
+			CacheRules:       configuration.Cache.Rules,
 			TransportTimeout: configuration.WriteTimeout,
 			DialerTimeout:    configuration.ReadTimeout,
-			CacheRules:       configuration.CacheRules,
 			Port:             configuration.Port,
 		}
 

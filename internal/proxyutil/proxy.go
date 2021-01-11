@@ -28,7 +28,7 @@ func ModifyResponse(r *http.Response) error {
 
 	if cacheutil.GetCluster() != nil {
 		//Check if URL must be cached
-		if ok, TTL := cacheutil.ContainsRule(r.Request.URL.Path, configuration.CacheRules); ok {
+		if ok, TTL := cacheutil.ContainsRule(r.Request.URL.Path, configuration.Cache.Rules); ok {
 			trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
 			cache := cacheutil.GetCluster()
 

@@ -22,15 +22,16 @@ rate_per_second: 200
 rate_bucket: 450
 transparent_proxy: true
 balancing_algorithm: weighted-least-connections
-cache: true
-cache_shards_amount: 8
-cache_shard_size: 128
-cache_algorithm: LFU
-cache_shard_exceed_fallback: false
-cache_background_update: true
-cache_rules:
-  - path: /static/
-    ttl: 100.Minute
+cache:
+  enabled: true
+  shards_amount: 8
+  shard_size: 128
+  algorithm: LFU
+  shard_exceed_fallback: false
+  background_update: true
+  rules:
+    - path: /static/
+      ttl: 100.Minute
 serve_static: false
 static_folder: /Projects/static/
 static_alias: /static/

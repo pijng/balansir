@@ -335,7 +335,7 @@ func CacheEquals(cacheHash *string, incomingArgs *CacheClusterArgs) bool {
 //TryServeFromCache ...
 func TryServeFromCache(w http.ResponseWriter, r *http.Request) error {
 	configuration := configutil.GetConfig()
-	if ok, _ := ContainsRule(r.URL.String(), configuration.CacheRules); ok {
+	if ok, _ := ContainsRule(r.URL.String(), configuration.Cache.Rules); ok {
 		cache := GetCluster()
 
 		response, err := cache.Get(r.URL.String(), false)
