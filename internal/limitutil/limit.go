@@ -53,15 +53,16 @@ func (v *Limiter) GetVisitor(ip string, configuration *configutil.Configuration)
 
 //CleanOldVisitors ...
 func (v *Limiter) CleanOldVisitors() {
+	ticker := time.NewTicker(1 * time.Second)
 	for {
-		v.mux.Lock()
+		<-ticker.C
 
+		v.mux.Lock()
 		for ip, val := range v.list {
 			if time.Since(val.lastSeen) > 1*time.Second {
 				delete(v.list, ip)
 			}
 		}
 		v.mux.Unlock()
-		time.Sleep(time.Minute)
 	}
 }

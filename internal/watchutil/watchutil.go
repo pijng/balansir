@@ -89,7 +89,11 @@ func Watch() {
 	fileHash := hex.EncodeToString(md[:16])
 	var fileHashNext string
 
+	ticker := time.NewTicker(1 * time.Second)
+
 	for {
+		<-ticker.C
+
 		file, _ = ioutil.ReadFile("config.yml")
 		md = md5.Sum(file)
 		fileHashNext = hex.EncodeToString(md[:16])
@@ -106,7 +110,5 @@ func Watch() {
 			}
 			logutil.Notice("Configuration changes applied to Balansir")
 		}
-
-		time.Sleep(time.Second)
 	}
 }
