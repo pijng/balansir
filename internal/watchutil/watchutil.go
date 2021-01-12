@@ -78,8 +78,8 @@ func FillConfiguration(file []byte) []error {
 	return errs
 }
 
-//Watch ...
-func Watch() {
+//WatchConfig ...
+func WatchConfig() {
 	file, err := ioutil.ReadFile("config.yml")
 	if err != nil {
 		logutil.Error(fmt.Sprintf("Error reading configuration file: %v", err))

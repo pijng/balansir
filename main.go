@@ -2,12 +2,12 @@ package main
 
 import (
 	"balansir/internal/configutil"
-	"balansir/internal/watchutil"
 	"balansir/internal/limitutil"
 	"balansir/internal/listenutil"
 	"balansir/internal/logutil"
 	"balansir/internal/poolutil"
 	"balansir/internal/rateutil"
+	"balansir/internal/watchutil"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,7 +36,7 @@ func main() {
 	}
 
 	go poolutil.PoolCheck()
-	go watchutil.Watch()
+	go watchutil.WatchConfig()
 
 	configuration := configutil.GetConfig()
 
