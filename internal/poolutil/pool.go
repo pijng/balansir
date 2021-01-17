@@ -8,7 +8,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
-	"expvar"
 	"fmt"
 	"math/rand"
 	"net"
@@ -122,7 +121,7 @@ func (pool *ServerPool) GetWeightedLeastConnectedServer() *serverutil.Server {
 	servers := pool.ExcludeZeroWeightServers()
 	serverList := ExcludeUnavailableServers(servers)
 	sort.Slice(serverList, func(i, j int) bool {
-		return (serverList[i].ActiveConnections.Value() / serverList[i].Weight) < (serverList[j].ActiveConnections.Value() / serverList[j].Weight)
+		return (float64(serverList[i].GetActiveConnections()) / serverList[i].Weight) < (float64(serverList[j].GetActiveConnections()) / serverList[j].Weight)
 	})
 
 	return serverList[0]
@@ -133,7 +132,7 @@ func (pool *ServerPool) GetLeastConnectedServer() *serverutil.Server {
 	serverList := pool.ServerList
 	serverList = ExcludeUnavailableServers(serverList)
 	sort.Slice(serverList, func(i, j int) bool {
-		return serverList[i].ActiveConnections.Value() < serverList[j].ActiveConnections.Value()
+		return serverList[i].GetActiveConnections() < serverList[j].GetActiveConnections()
 	})
 	return serverList[0]
 }
@@ -199,21 +198,16 @@ func RedefineServerPool(configuration *configutil.Configuration, serverPoolGuard
 		proxy.ModifyResponse = proxyutil.ModifyResponse
 		proxy.ErrorHandler = proxyutil.ErrorHandler
 
-		connections := expvar.NewFloat(randomStringBytes(5))
-
-		if configuration.SessionPersistence {
-			md := md5.Sum([]byte(serverURL.String()))
-			serverHash = hex.EncodeToString(md[:16])
-		}
+		md := md5.Sum([]byte(serverURL.String()))
+		serverHash = hex.EncodeToString(md[:16])
 
 		newPool.AddServer(&serverutil.Server{
-			URL:               serverURL,
-			Weight:            server.Weight,
-			ActiveConnections: connections,
-			Index:             index,
-			Alive:             true,
-			Proxy:             proxy,
-			ServerHash:        serverHash,
+			URL:        serverURL,
+			Weight:     server.Weight,
+			Index:      index,
+			Alive:      true,
+			Proxy:      proxy,
+			ServerHash: serverHash,
 		})
 		serverPoolGuard.Done()
 	}

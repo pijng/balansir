@@ -2,12 +2,12 @@ package serverutil
 
 import (
 	"balansir/internal/logutil"
-	"expvar"
 	"fmt"
 	"net"
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,7 +16,7 @@ type Server struct {
 	URL               *url.URL
 	Weight            float64
 	Index             int
-	ActiveConnections *expvar.Float
+	ActiveConnections int64
 	Alive             bool
 	Proxy             *httputil.ReverseProxy
 	ServerHash        string
@@ -54,4 +54,19 @@ func (server *Server) CheckAlive(tcpTimeout *int) bool {
 	}
 	server.SetAlive(true)
 	return true
+}
+
+//IncreaseActiveConnection ...
+func (server *Server) IncreaseActiveConnection() {
+	atomic.AddInt64(&server.ActiveConnections, 1)
+}
+
+//DecreaseActiveConnections ...
+func (server *Server) DecreaseActiveConnections() {
+	atomic.AddInt64(&server.ActiveConnections, -1)
+}
+
+//GetActiveConnections ...
+func (server *Server) GetActiveConnections() int64 {
+	return atomic.LoadInt64(&server.ActiveConnections)
 }

@@ -65,9 +65,8 @@ func LeastConnections(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
-	endpoint.ActiveConnections.Add(1)
+
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
-	endpoint.ActiveConnections.Add(-1)
 }
 
 //WeightedLeastConnections ...
@@ -79,9 +78,8 @@ func WeightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
-	endpoint.ActiveConnections.Add(1)
+
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
-	endpoint.ActiveConnections.Add(-1)
 }
 
 //NewServeMux ...

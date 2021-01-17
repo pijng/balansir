@@ -52,7 +52,7 @@ type endpoint struct {
 	URL               string  `json:"url"`
 	Active            bool    `json:"active"`
 	Weight            float64 `json:"weight"`
-	ActiveConnections float64 `json:"active_connections"`
+	ActiveConnections int64   `json:"active_connections"`
 	ServerHash        string  `json:"server_hash"`
 }
 
@@ -131,7 +131,7 @@ func getBalansirStats() *Stats {
 			server.URL.String(),
 			server.Alive,
 			server.Weight,
-			server.ActiveConnections.Value(),
+			server.GetActiveConnections(),
 			server.ServerHash,
 		}
 		server.Mux.RUnlock()

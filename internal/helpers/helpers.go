@@ -82,11 +82,8 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 
 //ServeDistributor ...
 func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	// connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
-	// if err != nil {
-	// 	return
-	// }
-	// connection.Close()
+	// endpoint.IncreaseActiveConnection()
+	// defer endpoint.DecreaseActiveConnections()
 
 	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
