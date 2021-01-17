@@ -35,7 +35,7 @@ func RoundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
+	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
 }
 
 //WeightedRoundRobin ...
@@ -53,7 +53,7 @@ func WeightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	if configuration.SessionPersistence {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
+	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
 }
 
 //LeastConnections ...
@@ -66,7 +66,7 @@ func LeastConnections(w http.ResponseWriter, r *http.Request) {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
+	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
 }
 
 //WeightedLeastConnections ...
@@ -79,7 +79,7 @@ func WeightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 
-	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
+	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
 }
 
 //NewServeMux ...
@@ -156,7 +156,7 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 				logutil.Warning(err)
 			} else {
 				w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-				helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
+				helpers.Dispatch(endpoint, configuration.Timeout, w, r)
 				return
 			}
 		}

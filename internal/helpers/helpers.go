@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
@@ -80,10 +81,15 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 	return false
 }
 
-//ServeDistributor ...
-func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	// endpoint.IncreaseActiveConnection()
-	// defer endpoint.DecreaseActiveConnections()
+//Dispatch ...
+func Dispatch(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
+	endpoint.IncreaseActiveConnection()
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: endpoint.DecreaseActiveConnections,
+	}
+
+	r = r.WithContext(httptrace.WithClientTrace(r.Context(), trace))
 
 	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
