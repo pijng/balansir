@@ -33,7 +33,7 @@ func RoundRobin(w http.ResponseWriter, r *http.Request) {
 	configuration := configutil.GetConfig()
 
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, configuration)
+		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 }
@@ -51,7 +51,7 @@ func WeightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, configuration)
+		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 }
@@ -63,7 +63,7 @@ func LeastConnections(w http.ResponseWriter, r *http.Request) {
 	configuration := configutil.GetConfig()
 
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, configuration)
+		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
@@ -77,7 +77,7 @@ func WeightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	configuration := configutil.GetConfig()
 
 	if configuration.SessionPersistence {
-		w = helpers.SetCookieToResponse(w, endpoint.ServerHash, configuration)
+		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
 	}
 	endpoint.ActiveConnections.Add(1)
 	helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
@@ -148,15 +148,19 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if configuration.SessionPersistence {
-		cookieHash, _ := r.Cookie("_balansir_server_hash")
-		if cookieHash != nil {
-			endpoint, err := pool.GetServerByHash(cookieHash.Value)
+		serverHash, _ := r.Cookie("X-Balansir-Server-Hash")
+		if serverHash != nil {
+			endpoint, err := pool.GetServerByHash(serverHash.Value)
 			if err != nil {
+				// If there is no server for the given hash in the pool – just warn about it and
+				// continue to algorithm switching to choose a new server.
+				// Also, consider disabling this behavior with configuration.
 				logutil.Warning(err)
+			} else {
+				w = helpers.SetSession(w, endpoint.ServerHash, configuration)
+				helpers.ServeDistributor(endpoint, configuration.Timeout, w, r)
 				return
 			}
-			endpoint.Proxy.ServeHTTP(w, r)
-			return
 		}
 	}
 

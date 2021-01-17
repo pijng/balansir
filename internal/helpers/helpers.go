@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 //ReturnPortFromHost ...
@@ -59,9 +58,9 @@ func setSecureHeaders(w http.ResponseWriter) http.ResponseWriter {
 	return w
 }
 
-//SetCookieToResponse ...
-func SetCookieToResponse(w http.ResponseWriter, hash string, configuration *configutil.Configuration) http.ResponseWriter {
-	http.SetCookie(w, &http.Cookie{Name: "_balansir_server_hash", Value: hash, MaxAge: configuration.SessionMaxAge})
+//SetSession ...
+func SetSession(w http.ResponseWriter, hash string, configuration *configutil.Configuration) http.ResponseWriter {
+	http.SetCookie(w, &http.Cookie{Name: "X-Balansir-Server-Hash", Value: hash, MaxAge: configuration.SessionMaxAge})
 	return w
 }
 
@@ -83,11 +82,11 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 
 //ServeDistributor ...
 func ServeDistributor(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
-	if err != nil {
-		return
-	}
-	connection.Close()
+	// connection, err := net.DialTimeout("tcp", endpoint.URL.Host, time.Second*time.Duration(timeout))
+	// if err != nil {
+	// 	return
+	// }
+	// connection.Close()
 
 	w = setSecureHeaders(w)
 	endpoint.Proxy.ServeHTTP(w, r)
