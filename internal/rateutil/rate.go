@@ -55,8 +55,8 @@ func (rate *Rate) RequestsPerSecond() float64 {
 }
 
 //CommitResponseTime ...
-func (rate *Rate) CommitResponseTime(rt time.Time) {
-	responseTime := time.Since(rt)
+func (rate *Rate) CommitResponseTime(requestStart time.Time) {
+	responseTime := time.Since(requestStart)
 	atomic.AddInt64(&rate.responseTimeSum[1], responseTime.Microseconds())
 }
 

@@ -8,10 +8,8 @@ import (
 	"balansir/internal/logutil"
 	"balansir/internal/metricsutil"
 	"balansir/internal/poolutil"
-	"balansir/internal/rateutil"
 	"balansir/internal/staticutil"
 	"net/http"
-	"time"
 )
 
 const (
@@ -132,13 +130,6 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 	if len(availableServers) == 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-
-	if r.Header.Get("X-Balansir-Background-Update") == "" {
-		rateCounter := rateutil.GetRateCounter()
-		rateCounter.HitRequest()
-		rtStart := time.Now()
-		defer rateCounter.CommitResponseTime(rtStart)
 	}
 
 	if configuration.TransparentProxy {

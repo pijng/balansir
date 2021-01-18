@@ -56,8 +56,8 @@ func (server *Server) CheckAlive(tcpTimeout *int) bool {
 	return true
 }
 
-//IncreaseActiveConnection ...
-func (server *Server) IncreaseActiveConnection() {
+//IncreaseActiveConnections ...
+func (server *Server) IncreaseActiveConnections() {
 	atomic.AddInt64(&server.ActiveConnections, 1)
 }
 

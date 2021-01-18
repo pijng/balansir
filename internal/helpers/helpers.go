@@ -3,6 +3,7 @@ package helpers
 import (
 	"balansir/internal/configutil"
 	"balansir/internal/logutil"
+	"balansir/internal/rateutil"
 	"balansir/internal/serverutil"
 	"crypto/md5"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //ReturnPortFromHost ...
@@ -83,10 +85,25 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 
 //Dispatch ...
 func Dispatch(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	endpoint.IncreaseActiveConnection()
+	rateCounter := rateutil.GetRateCounter()
+
+	trackResponseTime := r.Header.Get("X-Balansir-Background-Update") == ""
+	var requestStart time.Time
 
 	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: endpoint.DecreaseActiveConnections,
+		GotConn: func(httptrace.GotConnInfo) {
+			endpoint.IncreaseActiveConnections()
+			if trackResponseTime {
+				requestStart = time.Now()
+				rateCounter.HitRequest()
+			}
+		},
+		GotFirstResponseByte: func() {
+			endpoint.DecreaseActiveConnections()
+			if trackResponseTime {
+				rateCounter.CommitResponseTime(requestStart)
+			}
+		},
 	}
 
 	r = r.WithContext(httptrace.WithClientTrace(r.Context(), trace))
