@@ -109,7 +109,8 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if configuration.Cache.Enabled {
+	cache := cacheutil.GetCluster()
+	if configuration.Cache.Enabled && cache != nil {
 		if err := cacheutil.TryServeFromCache(w, r); err == nil {
 			return
 		}

@@ -152,7 +152,8 @@ func getBalansirStats() *Stats {
 		StatusCodes:         metrics.statusCodes.GetStatuses(),
 	}
 
-	if metrics.configuration.Cache.Enabled {
+	cache := cacheutil.GetCluster()
+	if metrics.configuration.Cache.Enabled && cache != nil {
 		stats.CacheInfo = cacheInfo{
 			HitRatio:     metrics.cache.GetHitRatio(),
 			ShardsAmount: metrics.cache.ShardsAmount,
