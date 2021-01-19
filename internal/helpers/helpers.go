@@ -3,18 +3,14 @@ package helpers
 import (
 	"balansir/internal/configutil"
 	"balansir/internal/logutil"
-	"balansir/internal/rateutil"
-	"balansir/internal/serverutil"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
-	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 //ReturnPortFromHost ...
@@ -54,16 +50,9 @@ func AddRemoteAddrToRequest(r *http.Request) *http.Request {
 	return r
 }
 
-func setSecureHeaders(w http.ResponseWriter) http.ResponseWriter {
-	w.Header().Add("X-XSS-Protection", "1; mode=block")
-	w.Header().Add("X-Content-Type-Options", "nosniff")
-	w.Header().Add("X-Frame-Options", "deny")
-	return w
-}
-
 //SetSession ...
-func SetSession(w http.ResponseWriter, hash string, configuration *configutil.Configuration) http.ResponseWriter {
-	http.SetCookie(w, &http.Cookie{Name: "X-Balansir-Server-Hash", Value: hash, MaxAge: configuration.SessionMaxAge})
+func SetSession(w http.ResponseWriter, hash string, sessionMaxAge int) http.ResponseWriter {
+	http.SetCookie(w, &http.Cookie{Name: "X-Balansir-Server-Hash", Value: hash, MaxAge: sessionMaxAge})
 	return w
 }
 
@@ -81,33 +70,4 @@ func ServerPoolsEquals(serverPoolHash *string, incomingPool []*configutil.Endpoi
 	}
 	*serverPoolHash = newPoolHash
 	return false
-}
-
-//Dispatch ...
-func Dispatch(endpoint *serverutil.Server, timeout int, w http.ResponseWriter, r *http.Request) {
-	rateCounter := rateutil.GetRateCounter()
-
-	trackResponseTime := r.Header.Get("X-Balansir-Background-Update") == ""
-	var requestStart time.Time
-
-	trace := &httptrace.ClientTrace{
-		GotConn: func(httptrace.GotConnInfo) {
-			endpoint.IncreaseActiveConnections()
-			if trackResponseTime {
-				requestStart = time.Now()
-				rateCounter.HitRequest()
-			}
-		},
-		GotFirstResponseByte: func() {
-			endpoint.DecreaseActiveConnections()
-			if trackResponseTime {
-				rateCounter.CommitResponseTime(requestStart)
-			}
-		},
-	}
-
-	r = r.WithContext(httptrace.WithClientTrace(r.Context(), trace))
-
-	w = setSecureHeaders(w)
-	endpoint.Proxy.ServeHTTP(w, r)
 }

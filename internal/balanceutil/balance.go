@@ -3,6 +3,7 @@ package balanceutil
 import (
 	"balansir/internal/cacheutil"
 	"balansir/internal/configutil"
+	"balansir/internal/dispatchutil"
 	"balansir/internal/helpers"
 	"balansir/internal/limitutil"
 	"balansir/internal/logutil"
@@ -28,12 +29,8 @@ func RoundRobin(w http.ResponseWriter, r *http.Request) {
 	pool := poolutil.GetPool()
 	index := pool.NextPool()
 	endpoint := pool.ServerList[index]
-	configuration := configutil.GetConfig()
 
-	if configuration.SessionPersistence {
-		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-	}
-	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
+	dispatchutil.Dispatch(endpoint, w, r)
 }
 
 //WeightedRoundRobin ...
@@ -41,43 +38,30 @@ func WeightedRoundRobin(w http.ResponseWriter, r *http.Request) {
 	pool := poolutil.GetPool()
 	poolChoice := pool.GetPoolChoice()
 	endpoint, err := poolutil.WeightedChoice(poolChoice)
-	configuration := configutil.GetConfig()
 
 	if err != nil {
 		logutil.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if configuration.SessionPersistence {
-		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-	}
-	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
+
+	dispatchutil.Dispatch(endpoint, w, r)
 }
 
 //LeastConnections ...
 func LeastConnections(w http.ResponseWriter, r *http.Request) {
 	pool := poolutil.GetPool()
 	endpoint := pool.GetLeastConnectedServer()
-	configuration := configutil.GetConfig()
 
-	if configuration.SessionPersistence {
-		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-	}
-
-	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
+	dispatchutil.Dispatch(endpoint, w, r)
 }
 
 //WeightedLeastConnections ...
 func WeightedLeastConnections(w http.ResponseWriter, r *http.Request) {
 	pool := poolutil.GetPool()
 	endpoint := pool.GetWeightedLeastConnectedServer()
-	configuration := configutil.GetConfig()
 
-	if configuration.SessionPersistence {
-		w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-	}
-
-	helpers.Dispatch(endpoint, configuration.Timeout, w, r)
+	dispatchutil.Dispatch(endpoint, w, r)
 }
 
 //NewServeMux ...
@@ -147,8 +131,7 @@ func LoadBalance(w http.ResponseWriter, r *http.Request) {
 				// Also, consider disabling this behavior with configuration.
 				logutil.Warning(err)
 			} else {
-				w = helpers.SetSession(w, endpoint.ServerHash, configuration)
-				helpers.Dispatch(endpoint, configuration.Timeout, w, r)
+				dispatchutil.Dispatch(endpoint, w, r)
 				return
 			}
 		}
