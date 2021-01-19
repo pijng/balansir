@@ -24,6 +24,15 @@ const (
 	mbBytes  = 1048576
 )
 
+var (
+	//KeyValueDelimeter ...
+	KeyValueDelimeter = []byte(";balansir-key-value-delimeter;")
+	//PairDelimeter ...
+	PairDelimeter = []byte(";balansir-pair-delimeter;")
+	//HeadersDelimeter ...
+	HeadersDelimeter = []byte(";balansir-headers-delimeter;")
+)
+
 type fnv64a struct{}
 
 func (f fnv64a) Sum(key string) uint64 {
@@ -114,7 +123,7 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 
 	if len(value) > shard.size {
 		shard.mux.Unlock()
-		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value))/1024/1024), shard.size/1024/1024)
+		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value)/mbBytes)), shard.size/mbBytes)
 	}
 
 	if shard.CurrentSize+len(value) >= shard.size {
@@ -205,26 +214,24 @@ func (cluster *CacheCluster) runInvalidation() {
 
 //ServeFromCache ...
 func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
-	//First we need to split headers from our cached response and assign it to responseWriter
-	slicedResponse := bytes.Split(value, []byte(";--;"))
-	//Iterate over sliced headers
-	for _, val := range slicedResponse {
-		//Split `key`–`value` parts and iterate over them
-		slicedHeader := bytes.Split(val, []byte(";-;"))
-		for i := range slicedHeader {
-			//Guard to prevent writing last header value as new header key
-			if i+1 <= len(slicedHeader)-1 {
-				//Write header `key`-`value` to responseWriter
-				w.Header().Set(string(slicedHeader[i]), string(slicedHeader[i+1]))
+	slicedValue := bytes.Split(value, HeadersDelimeter)
+	headers := slicedValue[0]
+	body := slicedValue[1]
+
+	headersPairs := bytes.Split(headers, PairDelimeter)
+	for _, pair := range headersPairs {
+		slicedPair := bytes.Split(pair, KeyValueDelimeter)
+		for i := range slicedPair {
+			//Prevent writing last pair value as a separate key
+			if i+1 <= len(slicedPair)-1 {
+				w.Header().Set(string(slicedPair[i]), string(slicedPair[i+1]))
 			}
 		}
 	}
 
-	//Create new buffer for our cached response
 	bodyBuf := bytes.NewBuffer([]byte{})
-	//Write body to buffer. It'll always be the last element of our slice
-	bodyBuf.Write(slicedResponse[len(slicedResponse)-1])
-	//Write response buffer to responseWriter and return it to client
+	bodyBuf.Write(body)
+
 	_, err := w.Write(bodyBuf.Bytes())
 
 	if err != nil {

@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 //ModifyResponse ...
 func ModifyResponse(r *http.Response) error {
+	//TODO move this to httptrace.ClientTrace in dispatchutil
 	statusCodes := statusutil.GetStatusCodes()
 	statusCodes.HitStatus(r.StatusCode)
 
@@ -26,57 +28,61 @@ func ModifyResponse(r *http.Response) error {
 		}
 	}
 
-	if cacheutil.GetCluster() != nil {
-		//Check if URL must be cached
-		if ok, TTL := cacheutil.ContainsRule(r.Request.URL.Path, configuration.Cache.Rules); ok {
-			trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
-			cache := cacheutil.GetCluster()
-
-			//Here we're checking if response' url is not cached.
-			_, err := cache.Get(r.Request.URL.Path, trackMiss)
-			if err != nil {
-				hashedKey := cache.Hash.Sum(r.Request.URL.Path)
-				defer cache.Queue.Release(hashedKey)
-
-				//Create bytes buffer for headers and iterate over them
-				headerBuf := bytes.NewBuffer([]byte{})
-
-				for key, val := range r.Header {
-					//Write header's key to buffer
-					headerBuf.Write([]byte(key))
-					//Add delimeter so we can split header key later
-					headerBuf.Write([]byte(";-;"))
-					//Create byte buffer for header value
-					headerValueBuf := bytes.NewBuffer([]byte{})
-					//Header value is a string slice, so iterate over it to correctly write it to a buffer
-					for _, v := range val {
-						headerValueBuf.Write([]byte(v))
-					}
-					//Write complete header value to headers buffer
-					headerBuf.Write(headerValueBuf.Bytes())
-					//Add another delimeter so we can split headers out of each other
-					headerBuf.Write([]byte(";--;"))
-				}
-
-				//Read response body, write it to buffer
-				b, _ := ioutil.ReadAll(r.Body)
-				bodyBuf := bytes.NewBuffer(b)
-
-				//Reassign response body
-				r.Body = ioutil.NopCloser(bodyBuf)
-
-				//Create new buffer. Write our headers and body
-				respBuf := bytes.NewBuffer([]byte{})
-				respBuf.Write(headerBuf.Bytes())
-				respBuf.Write(bodyBuf.Bytes())
-
-				err := cache.Set(r.Request.URL.Path, respBuf.Bytes(), TTL)
-				if err != nil {
-					logutil.Warning(err)
-				}
-			}
-		}
+	if !configuration.Cache.Enabled && cacheutil.GetCluster() == nil {
+		return nil
 	}
+
+	mustBeCached, TTL := cacheutil.ContainsRule(r.Request.URL.Path, configuration.Cache.Rules)
+	if !mustBeCached {
+		return nil
+	}
+
+	trackMiss := r.Request.Header.Get("X-Balansir-Background-Update") == ""
+	cache := cacheutil.GetCluster()
+
+	_, err := cache.Get(r.Request.URL.Path, trackMiss)
+	//err == nil means that response for a given key is already cached
+	if err == nil {
+		return nil
+	}
+
+	hashedKey := cache.Hash.Sum(r.Request.URL.Path)
+	defer cache.Queue.Release(hashedKey)
+
+	headersBuf := bytes.NewBuffer([]byte{})
+
+	for key, val := range r.Header {
+		headersBuf.Write([]byte(key))
+		//Add delimeter so we can split header's key and value later on
+		headersBuf.Write(cacheutil.KeyValueDelimeter)
+
+		headerValueBuf := bytes.NewBuffer([]byte{})
+		//Header value is a string slice
+		headerValueBuf.Write([]byte(strings.Join(val, "")))
+
+		headersBuf.Write(headerValueBuf.Bytes())
+		//Add delimeter so we can split pairs out of each other later on
+		headersBuf.Write(cacheutil.PairDelimeter)
+	}
+
+	//Add delimeter so we can split headers from body later on
+	headersBuf.Write(cacheutil.HeadersDelimeter)
+
+	b, _ := ioutil.ReadAll(r.Body)
+	bodyBuf := bytes.NewBuffer(b)
+
+	//Reassign and close response body with no-op
+	r.Body = ioutil.NopCloser(bodyBuf)
+
+	responseBuf := bytes.NewBuffer([]byte{})
+	responseBuf.Write(headersBuf.Bytes())
+	responseBuf.Write(bodyBuf.Bytes())
+
+	err = cache.Set(r.Request.URL.Path, responseBuf.Bytes(), TTL)
+	if err != nil {
+		logutil.Warning(err)
+	}
+
 	return nil
 }
 
