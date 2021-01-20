@@ -58,6 +58,7 @@ func (meta *Meta) getEvictionItem() (int, uint64) {
 			return values[i].Value < values[j].Value
 		})
 	case _FiFo:
+	default:
 	}
 
 	return values[0].ItemIndex, values[0].KeyIndex
@@ -75,6 +76,7 @@ func (meta *Meta) push(itemIndex int, keyIndex uint64, TTL string) {
 		value = time.Now().Add(duration).Unix()
 	case _MFU, _LFU:
 		value = 0
+	case _FiFo:
 	default:
 		value = 0
 	}

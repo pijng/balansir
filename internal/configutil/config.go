@@ -42,13 +42,12 @@ type Endpoint struct {
 
 //Cache ...
 type Cache struct {
-	Enabled             bool    `yaml:"enabled"`
-	ShardsAmount        int     `yaml:"shards_amount"`
-	ShardSize           int     `yaml:"shard_size"`
-	Algorithm           string  `yaml:"algorithm"`
-	ShardExceedFallback bool    `yaml:"shard_exceed_fallback"`
-	BackgroundUpdate    bool    `yaml:"background_update"`
-	Rules               []*Rule `yaml:"rules"`
+	Enabled          bool    `yaml:"enabled"`
+	ShardsAmount     int     `yaml:"shards_amount"`
+	ShardSize        int     `yaml:"shard_size"`
+	Policy           string  `yaml:"policy"`
+	BackgroundUpdate bool    `yaml:"background_update"`
+	Rules            []*Rule `yaml:"rules"`
 }
 
 //Rule ...

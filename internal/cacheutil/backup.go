@@ -97,7 +97,7 @@ func TakeCacheSnapshot() {
 		Shards: cluster.shards,
 	}
 
-	if cluster.backgroundUpdate && cluster.updater != nil {
+	if cluster.updater != nil {
 		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
 	}
 

@@ -55,8 +55,7 @@ func FillConfiguration(file []byte) []error {
 		args := cacheutil.CacheClusterArgs{
 			ShardsAmount:     configuration.Cache.ShardsAmount,
 			ShardSize:        configuration.Cache.ShardSize,
-			ExceedFallback:   configuration.Cache.ShardExceedFallback,
-			CacheAlgorithm:   configuration.Cache.Algorithm,
+			CachePolicy:      configuration.Cache.Policy,
 			BackgroundUpdate: configuration.Cache.BackgroundUpdate,
 			CacheRules:       configuration.Cache.Rules,
 			TransportTimeout: configuration.WriteTimeout,

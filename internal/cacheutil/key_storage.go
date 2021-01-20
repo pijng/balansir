@@ -29,13 +29,12 @@ func (ks *KeyStorage) SetHashedKey(key string, hashedKey uint64) {
 //GetInitialKey ...
 func (ks *KeyStorage) GetInitialKey(hashedKey uint64) (string, error) {
 	ks.mux.RLock()
+	defer ks.mux.RUnlock()
 
 	value, ok := ks.hashmap[hashedKey]
 	if !ok {
-		ks.mux.RUnlock()
 		return "", errors.New("url key not found")
 	}
 
-	ks.mux.RUnlock()
 	return value, nil
 }

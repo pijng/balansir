@@ -7,7 +7,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -55,7 +54,6 @@ type CacheCluster struct {
 	Queue            *Queue
 	Hits             int64
 	Misses           int64
-	exceedFallback   bool
 	backgroundUpdate bool
 	updater          *Updater
 	cacheRules       []*configutil.Rule
@@ -65,8 +63,7 @@ type CacheCluster struct {
 type CacheClusterArgs struct {
 	ShardsAmount     int
 	ShardSize        int
-	ExceedFallback   bool
-	CacheAlgorithm   string
+	CachePolicy      string
 	BackgroundUpdate bool
 	CacheRules       []*configutil.Rule
 	TransportTimeout int
@@ -79,13 +76,12 @@ var cluster *CacheCluster
 //New ...
 func New(args CacheClusterArgs) *CacheCluster {
 	cluster = &CacheCluster{
-		backupManager:  &BackupManager{},
-		shards:         make([]*Shard, args.ShardsAmount),
-		ShardsAmount:   args.ShardsAmount,
-		ShardSize:      args.ShardSize,
-		Queue:          NewQueue(),
-		exceedFallback: args.ExceedFallback,
-		cacheRules:     args.CacheRules,
+		backupManager: &BackupManager{},
+		shards:        make([]*Shard, args.ShardsAmount),
+		ShardsAmount:  args.ShardsAmount,
+		ShardSize:     args.ShardSize,
+		Queue:         NewQueue(),
+		cacheRules:    args.CacheRules,
 	}
 
 	if args.BackgroundUpdate {
@@ -94,7 +90,7 @@ func New(args CacheClusterArgs) *CacheCluster {
 	}
 
 	for i := 0; i < args.ShardsAmount; i++ {
-		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
+		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
 	}
 
 	//Restore cache in a separate goroutine to exclude hang up on booting.
@@ -111,8 +107,22 @@ func GetCluster() *CacheCluster {
 	return cluster
 }
 
+func (cluster *CacheCluster) consistentIndex(hashedKey uint64) int32 {
+	var b int64 = -1
+	var j int64
+
+	for j < int64(cluster.ShardsAmount) {
+		b = j
+		hashedKey = hashedKey*2862933555777941757 + 1
+		j = int64(float64(b+1) * (float64(int64(1)<<31) / float64((hashedKey>>33)+1)))
+	}
+
+	return int32(b)
+}
+
 func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
-	return cluster.shards[hashedKey&uint64(cluster.ShardsAmount-1)]
+	consistentShardIndex := cluster.consistentIndex(hashedKey)
+	return cluster.shards[consistentShardIndex]
 }
 
 //Set ...
@@ -120,52 +130,25 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	hashedKey := cluster.Hash.Sum(key)
 	shard := cluster.getShard(hashedKey)
 	shard.mux.Lock()
+	defer shard.mux.Unlock()
 
 	if len(value) > shard.size {
-		shard.mux.Unlock()
 		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(len(value)/mbBytes)), shard.size/mbBytes)
 	}
 
 	if shard.CurrentSize+len(value) >= shard.size {
-		shard.mux.Unlock()
-
-		if shard.Policy != nil {
-			if err := shard.evict(len(value)); err != nil {
-				return err
-			}
-			shard.set(hashedKey, value, TTL)
-
-			if cluster.updater != nil {
-				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
-			}
-
-			cluster.backupManager.Hit()
-			return nil
+		if err := shard.evict(len(value)); err != nil {
+			return err
 		}
-
-		if cluster.exceedFallback {
-			if err := setToFallbackShard(cluster.Hash, cluster.shards, shard, hashedKey, value, TTL); err != nil {
-				return err
-			}
-
-			if cluster.updater != nil {
-				cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
-			}
-
-			cluster.backupManager.Hit()
-			return nil
-		}
-
-		return errors.New("potential exceeding of shard max capacity")
 	}
-	shard.mux.Unlock()
+
 	shard.set(hashedKey, value, TTL)
 
 	if cluster.updater != nil {
 		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 	}
-
 	cluster.backupManager.Hit()
+
 	return nil
 }
 
@@ -174,27 +157,16 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 	hashedKey := cluster.Hash.Sum(key)
 	shard := cluster.getShard(hashedKey)
 	value, err := shard.get(hashedKey)
-	if cluster.exceedFallback {
-		if bytes.Contains(value, []byte("shard_reference_")) {
-			strValue := string(value)
-			hashedKey = cluster.Hash.Sum(strValue)
-			splittedVal := strings.Split(strValue, "shard_reference_")
-			index, _ := strconv.Atoi(strings.Split(splittedVal[1], "_val_")[0])
-			shard = cluster.shards[index]
-			value, err = shard.get(hashedKey)
-		}
-	}
+
 	if err == nil {
 		cluster.hit()
-		if shard.Policy != nil {
-			shard.Policy.updateMetaValue(hashedKey)
-		}
+		shard.Policy.updateMetaValue(hashedKey)
 	}
-	if err != nil {
-		if trackMisses {
-			cluster.miss()
-		}
+
+	if err != nil && trackMisses {
+		cluster.miss()
 	}
+
 	return value, err
 }
 
@@ -276,7 +248,6 @@ func RedefineCache(args *CacheClusterArgs) error {
 		backupManager:    cluster.backupManager,
 		Hits:             cluster.Hits,
 		Misses:           cluster.Misses,
-		exceedFallback:   args.ExceedFallback,
 		backgroundUpdate: args.BackgroundUpdate,
 		cacheRules:       args.CacheRules,
 		Queue:            cluster.Queue,
@@ -293,7 +264,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 	//increase shards amount
 	if cluster.ShardsAmount < args.ShardsAmount {
 		for i := 0; i < args.ShardsAmount-cluster.ShardsAmount; i++ {
-			shard := CreateShard(args.ShardSize*mbBytes, args.CacheAlgorithm)
+			shard := CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
 			newCluster.shards = append(newCluster.shards, shard)
 		}
 		newCluster.shards = append(newCluster.shards, cluster.shards...)
@@ -358,42 +329,45 @@ func CacheEquals(cacheHash *string, incomingArgs *CacheClusterArgs) bool {
 //TryServeFromCache ...
 func TryServeFromCache(w http.ResponseWriter, r *http.Request) error {
 	configuration := configutil.GetConfig()
-	if ok, _ := ContainsRule(r.URL.String(), configuration.Cache.Rules); ok {
-		cache := GetCluster()
+	mustBeCached, _ := ContainsRule(r.URL.String(), configuration.Cache.Rules)
 
-		response, err := cache.Get(r.URL.String(), false)
-		if err == nil {
-			ServeFromCache(w, r, response)
-			return nil
-		}
-
-		hashedKey := cache.Hash.Sum(r.URL.String())
-		guard := cache.Queue.Get(hashedKey)
-		//If there is no queue for a given key – create queue and set release on timeout.
-		//Timeout should prevent situation when release won't be triggered in modifyResponse
-		//due to server timeouts
-		if guard == nil {
-			cache.Queue.Set(hashedKey)
-			go func() {
-				for {
-					<-time.After(time.Duration(configuration.WriteTimeout) * time.Second)
-					cache.Queue.Release(hashedKey)
-					return
-				}
-			}()
-		} else {
-			//If there is a queue for a given key – wait for it to be released and get the response
-			//from the cache. Optimistically we don't need to check the returned error in this case,
-			//because the only error is a "key not found" yet we immediatelly grab the value after
-			//cache set.
-			guard.Wait()
-			response, _ := cache.Get(r.URL.String(), false)
-			ServeFromCache(w, r, response)
-			return nil
-		}
+	if !mustBeCached {
+		return fmt.Errorf("%s shouldn't be cached", r.URL.Path)
 	}
 
-	return fmt.Errorf("%s shouldn't be cached", r.URL.Path)
+	cache := GetCluster()
+	response, err := cache.Get(r.URL.String(), false)
+	if err == nil {
+		ServeFromCache(w, r, response)
+		return nil
+	}
+
+	hashedKey := cache.Hash.Sum(r.URL.String())
+	transaction := cache.Queue.Get(hashedKey)
+	//If there is no queue for a given key – create queue and set release on timeout.
+	//Timeout should prevent situation when release won't be triggered in modifyResponse
+	//due to server timeouts
+	if transaction == nil {
+		cache.Queue.Set(hashedKey)
+		go func() {
+			for {
+				<-time.After(time.Duration(configuration.WriteTimeout) * time.Second)
+				cache.Queue.Release(hashedKey)
+				return
+			}
+		}()
+	} else {
+		//If there is a queue for a given key – wait for it to be released and get the response
+		//from the cache. Optimistically we don't need to check the returned error in this case,
+		//because the only error is a "key not found" yet we immediatelly grab the value after
+		//cache set.
+		transaction.Wait()
+		response, _ := cache.Get(r.URL.String(), false)
+		ServeFromCache(w, r, response)
+		return nil
+	}
+
+	return err
 }
 
 //ContainsRule ...
