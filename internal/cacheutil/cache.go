@@ -185,14 +185,14 @@ func (cluster *CacheCluster) Get(key string, trackMisses bool) ([]byte, error) {
 		}
 	}
 	if err == nil {
-		atomic.AddInt64(&cluster.Hits, 1)
+		cluster.hit()
 		if shard.Policy != nil {
 			shard.Policy.updateMetaValue(hashedKey)
 		}
 	}
 	if err != nil {
 		if trackMisses {
-			atomic.AddInt64(&cluster.Misses, 1)
+			cluster.miss()
 		}
 	}
 	return value, err
@@ -241,9 +241,25 @@ func ServeFromCache(w http.ResponseWriter, r *http.Request, value []byte) {
 
 //GetHitRatio ...
 func (cluster *CacheCluster) GetHitRatio() float64 {
-	hits := float64(atomic.LoadInt64(&cluster.Hits))
-	misses := float64(atomic.LoadInt64(&cluster.Misses))
+	hits := float64(cluster.getHits())
+	misses := float64(cluster.getMisses())
 	return (hits / math.Max(hits+misses, 1)) * 100
+}
+
+func (cluster *CacheCluster) hit() {
+	atomic.AddInt64(&cluster.Hits, 1)
+}
+
+func (cluster *CacheCluster) getHits() int64 {
+	return atomic.LoadInt64(&cluster.Hits)
+}
+
+func (cluster *CacheCluster) miss() {
+	atomic.AddInt64(&cluster.Misses, 1)
+}
+
+func (cluster *CacheCluster) getMisses() int64 {
+	return atomic.LoadInt64(&cluster.Misses)
 }
 
 //RedefineCache ...
