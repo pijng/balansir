@@ -107,7 +107,9 @@ func GetCluster() *CacheCluster {
 	return cluster
 }
 
-func (cluster *CacheCluster) consistentIndex(hashedKey uint64) int32 {
+//https://arxiv.org/pdf/1406.2294.pdf
+//grsky golang implementation https://github.com/dgryski/go-jump/blob/master/jump.go
+func (cluster *CacheCluster) jumpConsistentHash(hashedKey uint64) int32 {
 	var b int64 = -1
 	var j int64
 
@@ -121,8 +123,8 @@ func (cluster *CacheCluster) consistentIndex(hashedKey uint64) int32 {
 }
 
 func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
-	consistentShardIndex := cluster.consistentIndex(hashedKey)
-	return cluster.shards[consistentShardIndex]
+	index := cluster.jumpConsistentHash(hashedKey)
+	return cluster.shards[index]
 }
 
 //Set ...
@@ -253,12 +255,10 @@ func RedefineCache(args *CacheClusterArgs) error {
 		Queue:            cluster.Queue,
 	}
 
-	if args.BackgroundUpdate {
-		if cluster.updater == nil {
-			newCluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
-		} else {
-			newCluster.updater = cluster.updater
-		}
+	if cluster.updater != nil {
+		newCluster.updater = cluster.updater
+	} else {
+		newCluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
 	}
 
 	//increase shards amount
