@@ -13,6 +13,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -21,6 +22,8 @@ const (
 	offset64 = 14695981039346656037
 	prime64  = 1099511628211
 	mbBytes  = 1048576
+
+	pow2 = float64(int64(1) << 31)
 )
 
 var (
@@ -57,6 +60,7 @@ type CacheCluster struct {
 	backgroundUpdate bool
 	updater          *Updater
 	cacheRules       []*configutil.Rule
+	Mux              sync.RWMutex
 }
 
 //CacheClusterArgs ...
@@ -76,26 +80,21 @@ var cluster *CacheCluster
 //New ...
 func New(args CacheClusterArgs) *CacheCluster {
 	cluster = &CacheCluster{
-		backupManager: &BackupManager{},
-		shards:        make([]*Shard, args.ShardsAmount),
-		ShardsAmount:  args.ShardsAmount,
-		ShardSize:     args.ShardSize,
-		Queue:         NewQueue(),
-		cacheRules:    args.CacheRules,
-	}
-
-	if args.BackgroundUpdate {
-		cluster.backgroundUpdate = args.BackgroundUpdate
-		cluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
+		backupManager:    &BackupManager{},
+		shards:           make([]*Shard, args.ShardsAmount),
+		ShardsAmount:     args.ShardsAmount,
+		ShardSize:        args.ShardSize,
+		Queue:            NewQueue(),
+		cacheRules:       args.CacheRules,
+		backgroundUpdate: args.BackgroundUpdate,
+		updater:          NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout),
 	}
 
 	for i := 0; i < args.ShardsAmount; i++ {
 		cluster.shards[i] = CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
 	}
 
-	//Restore cache in a separate goroutine to exclude hang up on booting.
-	go RestoreCache(cluster)
-
+	go RestoreCache()
 	go cluster.runInvalidation()
 	go cluster.backupManager.PersistCache()
 
@@ -109,21 +108,21 @@ func GetCluster() *CacheCluster {
 
 //https://arxiv.org/pdf/1406.2294.pdf
 //grsky golang implementation https://github.com/dgryski/go-jump/blob/master/jump.go
-func (cluster *CacheCluster) jumpConsistentHash(hashedKey uint64) int32 {
+func jumpConsistentHash(hashedKey uint64, shardsAmount int) int64 {
 	var b int64 = -1
 	var j int64
 
-	for j < int64(cluster.ShardsAmount) {
+	for j < int64(shardsAmount) {
 		b = j
 		hashedKey = hashedKey*2862933555777941757 + 1
-		j = int64(float64(b+1) * (float64(int64(1)<<31) / float64((hashedKey>>33)+1)))
+		j = int64(float64(b+1) * (pow2 / float64((hashedKey>>33)+1)))
 	}
 
-	return int32(b)
+	return b
 }
 
 func (cluster *CacheCluster) getShard(hashedKey uint64) *Shard {
-	index := cluster.jumpConsistentHash(hashedKey)
+	index := jumpConsistentHash(hashedKey, cluster.ShardsAmount)
 	return cluster.shards[index]
 }
 
@@ -145,10 +144,8 @@ func (cluster *CacheCluster) Set(key string, value []byte, TTL string) (err erro
 	}
 
 	shard.set(hashedKey, value, TTL)
+	cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
 
-	if cluster.updater != nil {
-		cluster.updater.keyStorage.SetHashedKey(key, hashedKey)
-	}
 	cluster.backupManager.Hit()
 
 	return nil
@@ -250,67 +247,83 @@ func RedefineCache(args *CacheClusterArgs) error {
 		backupManager:    cluster.backupManager,
 		Hits:             cluster.Hits,
 		Misses:           cluster.Misses,
+		ShardsAmount:     cluster.ShardsAmount,
+		ShardSize:        args.ShardSize,
+		shards:           cluster.shards,
+		Queue:            cluster.Queue,
 		backgroundUpdate: args.BackgroundUpdate,
 		cacheRules:       args.CacheRules,
-		Queue:            cluster.Queue,
+		updater:          cluster.updater,
 	}
 
-	if cluster.updater != nil {
-		newCluster.updater = cluster.updater
-	} else {
-		newCluster.updater = NewUpdater(args.Port, args.TransportTimeout, args.DialerTimeout)
-	}
+	if cluster.ShardsAmount != args.ShardsAmount {
+		cluster.Mux.Lock()
+		defer cluster.Mux.Unlock()
 
-	//increase shards amount
-	if cluster.ShardsAmount < args.ShardsAmount {
-		for i := 0; i < args.ShardsAmount-cluster.ShardsAmount; i++ {
-			shard := CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
-			newCluster.shards = append(newCluster.shards, shard)
+		for shardIdx := range cluster.shards {
+			// temporary solution pit additional lock, consider removing with something else
+			cluster.shards[shardIdx].priorMux.Lock()
+			defer cluster.shards[shardIdx].priorMux.Unlock()
+
+			cluster.shards[shardIdx].mux.Lock()
+			defer cluster.shards[shardIdx].mux.Unlock()
 		}
-		newCluster.shards = append(newCluster.shards, cluster.shards...)
 
-		//reduce shards amount
-	} else if cluster.ShardsAmount > args.ShardsAmount {
-		var deletedShards int
-		var emptyShards []*Shard
-		var nonEmptyShards int
-		diff := cluster.ShardsAmount - args.ShardsAmount
+		if cluster.ShardsAmount < args.ShardsAmount {
+			diff := args.ShardsAmount - cluster.ShardsAmount
 
-		for _, shard := range cluster.shards {
-			if deletedShards != diff {
-				if shard.CurrentSize > 0 {
-					nonEmptyShards++
-					continue
+			for addingShardIdx := 0; addingShardIdx < diff; addingShardIdx++ {
+				newShard := CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
+
+				for shardIdx := range newCluster.shards {
+
+					for hashedKey := range newCluster.shards[shardIdx].Hashmap {
+						newShardIdx := jumpConsistentHash(hashedKey, args.ShardsAmount)
+						if newShardIdx != int64(args.ShardsAmount-addingShardIdx-1) {
+							continue
+						}
+
+						shardItem := newCluster.shards[shardIdx].Hashmap[hashedKey]
+						TTL := newCluster.shards[shardIdx].Policy.HashMap[hashedKey].TTL
+
+						newShard.set(hashedKey, newCluster.shards[shardIdx].Items[shardItem.Index], TTL)
+						newCluster.shards[shardIdx].delete(hashedKey, shardItem.Index, shardItem.Length)
+					}
+
 				}
-				emptyShards = append(emptyShards, shard)
-				deletedShards++
+
+				newCluster.shards = append(newCluster.shards, newShard)
 			}
 		}
 
-		if deletedShards < diff {
-			return fmt.Errorf("cannot delete %v shard(s), because shards amount is %v and there are %v non-empty shard(s)", diff, cluster.ShardsAmount, nonEmptyShards)
+		if cluster.ShardsAmount > args.ShardsAmount {
+			diff := cluster.ShardsAmount - args.ShardsAmount
+
+			for removingShardIdx := 1; removingShardIdx <= diff; removingShardIdx++ {
+
+				for hashedKey := range newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Hashmap {
+					newShardIdx := jumpConsistentHash(hashedKey, newCluster.ShardsAmount-removingShardIdx-1)
+
+					shardItem := newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Hashmap[hashedKey]
+					TTL := newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Policy.HashMap[hashedKey].TTL
+
+					newCluster.shards[newShardIdx].set(hashedKey, newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Items[shardItem.Index], TTL)
+				}
+
+				newCluster.shards[newCluster.ShardsAmount-removingShardIdx] = nil
+				newCluster.shards = newCluster.shards[:newCluster.ShardsAmount-removingShardIdx]
+			}
 		}
 
-		for _, shard := range cluster.shards {
-			if !include(emptyShards, shard) {
-				newCluster.shards = append(newCluster.shards, shard)
-			}
-		}
-	} else {
-		newCluster.shards = cluster.shards
-		for i, shard := range newCluster.shards {
-			if shard.CurrentSize/mbBytes > args.ShardSize {
-				return fmt.Errorf("shards capacity cannot be reduced to %vmb, because one of the shard's current size is %vmb", args.ShardSize, shard.CurrentSize/mbBytes)
-			}
-			newCluster.shards[i].size = args.ShardSize * mbBytes
-		}
+		// TODO: resize shards as well
+		newCluster.ShardSize = args.ShardSize
+		newCluster.ShardsAmount = len(newCluster.shards)
+
+		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
 	}
 
-	newCluster.ShardSize = args.ShardSize
-	newCluster.ShardsAmount = len(newCluster.shards)
-
-	debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
 	cluster = newCluster
+
 	return nil
 }
 

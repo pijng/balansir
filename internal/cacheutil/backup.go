@@ -3,7 +3,6 @@ package cacheutil
 import (
 	"balansir/internal/logutil"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
@@ -53,27 +52,27 @@ func (bm *BackupManager) PersistCache() {
 		case <-ticker1m.C:
 			actions := bm.GetHitsCount()
 			if actions >= actionsThreshold1m {
-				TakeCacheSnapshot()
+				bm.takeCacheSnapshot()
 			}
-			bm.Reset()
 		case <-ticker5m.C:
 			actions := bm.GetHitsCount()
 			if actions > actionsThreshold15m && actions <= actionsThreshold1m {
-				TakeCacheSnapshot()
+				bm.takeCacheSnapshot()
 			}
-			bm.Reset()
 		case <-ticker15m.C:
 			actions := bm.GetHitsCount()
 			if actions <= actionsThreshold15m {
-				TakeCacheSnapshot()
+				bm.takeCacheSnapshot()
 			}
-			bm.Reset()
 		}
 	}
 }
 
-//TakeCacheSnapshot ...
-func TakeCacheSnapshot() {
+func (bm *BackupManager) takeCacheSnapshot() {
+	cache := GetCluster()
+	cache.Mux.Lock()
+	defer cache.Mux.Unlock()
+
 	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("failed to create/open cache snapshot file: %v", err))
@@ -94,25 +93,23 @@ func TakeCacheSnapshot() {
 	}
 
 	snapshot := &Snapshot{
-		Shards: cluster.shards,
+		Shards:    cluster.shards,
+		KsHashMap: cluster.updater.keyStorage.hashmap,
 	}
 
-	if cluster.updater != nil {
-		snapshot.KsHashMap = cluster.updater.keyStorage.hashmap
-	}
-
+	bm.Reset()
 	encoder := gob.NewEncoder(file)
-	err = encoder.Encode(&snapshot)
+	err = encoder.Encode(snapshot)
 	if err != nil {
 		logutil.Warning(fmt.Sprintf("Error while saving cache on disk: %v", err))
 	}
 }
 
 //GetSnapshot ...
-func GetSnapshot() (Snapshot, *os.File, error) {
+func GetSnapshot() (*Snapshot, *os.File, error) {
 	file, err := os.OpenFile(snapshotPath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
-		return Snapshot{}, nil, fmt.Errorf("failed to create/open cache snapshot file: %w", err)
+		return &Snapshot{}, nil, fmt.Errorf("failed to create/open cache snapshot file: %w", err)
 	}
 
 	decoder := gob.NewDecoder(file)
@@ -120,11 +117,15 @@ func GetSnapshot() (Snapshot, *os.File, error) {
 	snapshot := Snapshot{}
 	decoder.Decode(&snapshot) //nolint
 
-	return snapshot, file, nil
+	return &snapshot, file, nil
 }
 
 //RestoreCache ...
-func RestoreCache(cluster *CacheCluster) {
+func RestoreCache() {
+	cache := GetCluster()
+	cache.Mux.Lock()
+	defer cache.Mux.Unlock()
+
 	snapshot, file, err := GetSnapshot()
 	defer file.Close()
 
@@ -142,58 +143,8 @@ func RestoreCache(cluster *CacheCluster) {
 		return
 	}
 
-	errs := RestoreShards(cluster, snapshot, cluster.shards)
-	if errs != nil {
-		logutil.Warning("Encountered the following errors while loading cache from disk:")
-		for _, err := range errs {
-			logutil.Warning(err)
-		}
-		return
-	}
+	cluster.shards = snapshot.Shards
+	cluster.updater.keyStorage.hashmap = snapshot.KsHashMap
 
 	logutil.Notice("Cache loaded from disk")
-}
-
-//RestoreShards ...
-func RestoreShards(cluster *CacheCluster, snapshot Snapshot, shards []*Shard) []error {
-	var errs []error
-
-	for _, snapshotShard := range snapshot.Shards {
-		for key, item := range snapshotShard.Hashmap {
-			shard := cluster.getShard(key)
-
-			err := RestoreShard(key, item, shard, snapshotShard)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			if cluster.backgroundUpdate {
-				cluster.updater.keyStorage.SetHashedKey(snapshot.KsHashMap[key], key)
-			}
-		}
-	}
-
-	return errs
-}
-
-//RestoreShard ...
-func RestoreShard(hashedKey uint64, item shardItem, shard *Shard, snapshotShard *Shard) error {
-	if item.Length >= shard.size {
-		return fmt.Errorf("value size is bigger than shard max size: %vmb out of %vmb", fmt.Sprintf("%.2f", float64(item.Length)/1024/1024), shard.size/1024/1024)
-	}
-	if shard.CurrentSize+item.Length >= shard.size {
-		return errors.New("potential exceeding of shard max capacity")
-	}
-
-	value := snapshotShard.Items[item.Index]
-	index := shard.push(value)
-	shard.Hashmap[hashedKey] = shardItem{Index: index, Length: len(value), TTL: item.TTL}
-
-	if shard.Policy != nil && snapshotShard.Policy != nil {
-		TTL := snapshotShard.Policy.HashMap[hashedKey].TTL
-		shard.Policy.push(index, hashedKey, TTL)
-	}
-
-	return nil
 }

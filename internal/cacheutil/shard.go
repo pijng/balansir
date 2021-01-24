@@ -13,6 +13,7 @@ type Shard struct {
 	Items       map[int][]byte
 	Tail        int
 	mux         sync.RWMutex
+	priorMux    sync.RWMutex
 	size        int
 	CurrentSize int
 	Policy      *Meta
@@ -92,8 +93,8 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 		return
 	}
 
-	for keyIndex, item := range s.Hashmap {
-		ttl := item.TTL
+	for keyIndex := range s.Hashmap {
+		ttl := s.Hashmap[keyIndex].TTL
 
 		if s.Policy.TimeBased() {
 			ttl = s.Policy.HashMap[keyIndex].Value
@@ -103,7 +104,7 @@ func (s *Shard) update(timestamp int64, updater *Updater) {
 			return
 		}
 
-		s.delete(keyIndex, item.Index, item.Length)
+		s.delete(keyIndex, s.Hashmap[keyIndex].Index, s.Hashmap[keyIndex].Length)
 
 		cluster := GetCluster()
 		cluster.backupManager.Hit()
