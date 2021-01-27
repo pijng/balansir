@@ -14,7 +14,7 @@ type Shard struct {
 	Tail        int
 	mux         sync.RWMutex
 	priorMux    sync.RWMutex
-	size        int
+	Size        int
 	CurrentSize int
 	Policy      *Meta
 }
@@ -31,7 +31,7 @@ func CreateShard(size int, CachePolicy string) *Shard {
 		Hashmap:     make(map[uint64]shardItem),
 		Items:       make(map[int][]byte),
 		Tail:        0,
-		size:        size,
+		Size:        size,
 		CurrentSize: 0,
 		Policy:      NewMeta(CachePolicy),
 	}
@@ -132,7 +132,7 @@ func (s *Shard) retryEvict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
-	if s.size-s.CurrentSize <= pendingValueSize {
+	if s.Size-s.CurrentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
@@ -149,7 +149,7 @@ func (s *Shard) evict(pendingValueSize int) error {
 
 	s.delete(keyIndex, itemIndex, s.Hashmap[keyIndex].Length)
 
-	if s.size-s.CurrentSize <= pendingValueSize {
+	if s.Size-s.CurrentSize <= pendingValueSize {
 		if err := s.retryEvict(pendingValueSize); err != nil {
 			logutil.Warning(err)
 		}
