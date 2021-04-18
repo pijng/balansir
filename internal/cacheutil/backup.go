@@ -22,8 +22,12 @@ type BackupManager struct {
 
 //Snapshot ...
 type Snapshot struct {
-	Shards    []*Shard
-	KsHashMap map[uint64]string
+	ShardAmount int
+	ShardSize   int
+	Hits        int64
+	Misses      int64
+	Shards      []*Shard
+	KsHashMap   map[uint64]string
 }
 
 //Hit ...
