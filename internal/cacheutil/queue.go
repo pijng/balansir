@@ -45,8 +45,8 @@ func (q *Queue) Release(hashedKey uint64) {
 
 //Get ...
 func (q *Queue) Get(hashedKey uint64) *sync.WaitGroup {
-	q.mux.Lock()
-	defer q.mux.Unlock()
+	q.mux.RLock()
+	defer q.mux.RUnlock()
 
 	transaction := q.hashMap[hashedKey]
 
