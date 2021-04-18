@@ -1,5 +1,5 @@
 server_list:
-  - endpoint: 127.0.0.1:5000
+  - endpoint: 127.0.0.1:5001
     weight: 0.5
 connection_protocol: http
 autocert: false
@@ -26,8 +26,7 @@ cache:
   enabled: true
   shards_amount: 8
   shard_size: 128
-  algorithm: LFU
-  shard_exceed_fallback: false
+  policy: LFU
   background_update: true
   rules:
     - path: /static/
