@@ -257,69 +257,7 @@ func RedefineCache(args *CacheClusterArgs) error {
 	}
 
 	if cluster.ShardsAmount != args.ShardsAmount {
-		cluster.Mux.Lock()
-		defer cluster.Mux.Unlock()
-
-		for shardIdx := range cluster.shards {
-			// temporary solution pit additional lock, consider removing with something else
-			cluster.shards[shardIdx].priorMux.Lock()
-			defer cluster.shards[shardIdx].priorMux.Unlock()
-
-			cluster.shards[shardIdx].mux.Lock()
-			defer cluster.shards[shardIdx].mux.Unlock()
-		}
-
-		if cluster.ShardsAmount < args.ShardsAmount {
-			diff := args.ShardsAmount - cluster.ShardsAmount
-
-			for addingShardIdx := 0; addingShardIdx < diff; addingShardIdx++ {
-				newShard := CreateShard(args.ShardSize*mbBytes, args.CachePolicy)
-
-				for shardIdx := range newCluster.shards {
-
-					for hashedKey := range newCluster.shards[shardIdx].Hashmap {
-						newShardIdx := jumpConsistentHash(hashedKey, args.ShardsAmount)
-						if newShardIdx != int64(args.ShardsAmount-addingShardIdx-1) {
-							continue
-						}
-
-						shardItem := newCluster.shards[shardIdx].Hashmap[hashedKey]
-						TTL := newCluster.shards[shardIdx].Policy.HashMap[hashedKey].TTL
-
-						newShard.set(hashedKey, newCluster.shards[shardIdx].Items[shardItem.Index], TTL)
-						newCluster.shards[shardIdx].delete(hashedKey, shardItem.Index, shardItem.Length)
-					}
-
-				}
-
-				newCluster.shards = append(newCluster.shards, newShard)
-			}
-		}
-
-		if cluster.ShardsAmount > args.ShardsAmount {
-			diff := cluster.ShardsAmount - args.ShardsAmount
-
-			for removingShardIdx := 1; removingShardIdx <= diff; removingShardIdx++ {
-
-				for hashedKey := range newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Hashmap {
-					newShardIdx := jumpConsistentHash(hashedKey, newCluster.ShardsAmount-removingShardIdx-1)
-
-					shardItem := newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Hashmap[hashedKey]
-					TTL := newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Policy.HashMap[hashedKey].TTL
-
-					newCluster.shards[newShardIdx].set(hashedKey, newCluster.shards[newCluster.ShardsAmount-removingShardIdx].Items[shardItem.Index], TTL)
-				}
-
-				newCluster.shards[newCluster.ShardsAmount-removingShardIdx] = nil
-				newCluster.shards = newCluster.shards[:newCluster.ShardsAmount-removingShardIdx]
-			}
-		}
-
-		// TODO: resize shards as well
-		newCluster.ShardSize = args.ShardSize
-		newCluster.ShardsAmount = len(newCluster.shards)
-
-		debug.SetGCPercent(GCPercentRatio(args.ShardsAmount, args.ShardSize))
+		newCluster.shards = DistributeShards(newCluster, cluster, args)
 	}
 
 	cluster = newCluster

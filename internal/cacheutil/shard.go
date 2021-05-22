@@ -13,7 +13,6 @@ type Shard struct {
 	Items       map[int][]byte
 	Tail        int
 	mux         sync.RWMutex
-	priorMux    sync.RWMutex
 	Size        int
 	CurrentSize int
 	Policy      *Meta
