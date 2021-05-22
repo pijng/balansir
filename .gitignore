@@ -7,3 +7,4 @@ server.key
 balansir
 settings.json
 .snapshot.gob
+/content/assets/js/dist/
